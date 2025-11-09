@@ -1,0 +1,3 @@
+# Rust wasm artifacts
+wasm/pkg
+wasm/target
