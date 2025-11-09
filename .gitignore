@@ -1,3 +1,6 @@
+# Node / web assets
+web/node_modules
+
 # Rust wasm artifacts
 wasm/pkg
 wasm/target
