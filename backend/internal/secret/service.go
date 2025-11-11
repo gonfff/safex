@@ -56,7 +56,7 @@ func (s *Service) Create(ctx context.Context, input CreateInput) (metadata.Metad
 	return record, nil
 }
 
-// Loads metadata and payload, with expiration check.
+// Load loads metadata and payload, with expiration check.
 func (s *Service) Load(ctx context.Context, id string) (metadata.MetadataRecord, []byte, error) {
 	rec, err := s.meta.Get(ctx, id)
 	if err != nil {
