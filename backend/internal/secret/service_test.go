@@ -80,8 +80,8 @@ func TestServiceCreateMetadataError(t *testing.T) {
 	if err == nil || err.Error() != "store metadata: db down" {
 		t.Fatalf("expected metadata error to be returned, got %v", err)
 	}
-	if len(blobStore.putCalls) != 1 {
-		t.Fatalf("blob should still be stored before metadata failure")
+	if len(blobStore.deleteCalls) != 1 {
+		t.Fatalf("blob should be rolled back when metadata fails")
 	}
 }
 
