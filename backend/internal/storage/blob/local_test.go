@@ -34,3 +34,48 @@ func TestLocalStore(t *testing.T) {
 		t.Fatalf("delete: %v", err)
 	}
 }
+
+func TestNewLocalRequiresRoot(t *testing.T) {
+	if _, err := NewLocal(""); err == nil {
+		t.Fatalf("expected error for empty root")
+	}
+}
+
+func TestNewLocalFailsWhenPathIsFile(t *testing.T) {
+	dir := t.TempDir()
+	occupied := filepath.Join(dir, "file")
+	if err := os.WriteFile(occupied, []byte("x"), 0o644); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	if _, err := NewLocal(occupied); err == nil {
+		t.Fatalf("expected error when path already occupied by file")
+	}
+}
+
+func TestLocalStorePutMissingDirectory(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "missing")
+	store := &LocalStore{root: root}
+	if err := store.Put(context.Background(), "key", []byte("data")); err == nil {
+		t.Fatalf("expected error when directory is absent")
+	}
+}
+
+func TestLocalStoreGetMissingFile(t *testing.T) {
+	store := &LocalStore{root: t.TempDir()}
+	if _, err := store.Get(context.Background(), "missing"); err == nil {
+		t.Fatalf("expected error when file is absent")
+	}
+}
+
+func TestLocalStoreDeleteNonEmptyDirectory(t *testing.T) {
+	root := t.TempDir()
+	dirKey := filepath.Join("nested", "dir")
+	target := filepath.Join(root, dirKey)
+	if err := os.MkdirAll(filepath.Join(target, "child"), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	store := &LocalStore{root: root}
+	if err := store.Delete(context.Background(), dirKey); err == nil {
+		t.Fatalf("expected error when removing non-empty directory")
+	}
+}

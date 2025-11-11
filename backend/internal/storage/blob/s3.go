@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"log"
 
 	"github.com/minio/minio-go/v7"
 	"github.com/minio/minio-go/v7/pkg/credentials"
@@ -35,7 +34,7 @@ func NewS3(cfg S3Config) (*S3Store, error) {
 		Region: cfg.Region,
 	})
 	if err != nil {
-		log.Fatalln(err)
+		return nil, fmt.Errorf("failed to create S3 client: %w", err)
 	}
 	return &S3Store{
 		bucket: cfg.Bucket,
