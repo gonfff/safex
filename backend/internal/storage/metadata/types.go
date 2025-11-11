@@ -8,6 +8,5 @@ type MetadataRecord struct {
 	FileName    string    `json:"fileName"`
 	ContentType string    `json:"contentType"`
 	Size        int64     `json:"size"`
-	TTLSeconds  int       `json:"ttlSeconds"`
 	ExpiresAt   time.Time `json:"expiresAt"`
 }

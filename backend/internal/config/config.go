@@ -98,7 +98,7 @@ func (c Config) MustValidate() error {
 	}
 
 	if c.DefaultTTL <= 0 {
-		return fmt.Errorf("SAFEX_DEFAULT_TTL_HOURS must be greater than zero")
+		return fmt.Errorf("SAFEX_DEFAULT_TTL_MINUTES must be greater than zero")
 	}
 
 	return nil
