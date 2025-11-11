@@ -33,7 +33,7 @@ func NewService(blob storage.BlobStore, meta storage.MetadataStore, logger zerol
 	return &Service{blob: blob, meta: meta, logger: logger, maxSize: maxSize}
 }
 
-// Create a new secret and returns its metadata.
+// Create creates a new secret and returns its metadata.
 func (s *Service) Create(ctx context.Context, input CreateInput) (metadata.MetadataRecord, error) {
 	id := uuid.New().String()
 
