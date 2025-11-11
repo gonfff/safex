@@ -62,16 +62,14 @@ func (s *Service) Load(ctx context.Context, id string) (metadata.MetadataRecord,
 	if err != nil {
 		return metadata.MetadataRecord{}, nil, fmt.Errorf("load metadata: %w", err)
 	}
-	payload, err := s.blob.Get(ctx, id)
-	if err != nil {
-		return metadata.MetadataRecord{}, nil, fmt.Errorf("load blob: %w", err)
-	}
-
 	if rec.ExpiresAt.Before(time.Now()) {
 		_ = s.Delete(ctx, id)
 		return metadata.MetadataRecord{}, nil, fmt.Errorf("secret expired")
 	}
-
+	payload, err := s.blob.Get(ctx, id)
+	if err != nil {
+		return metadata.MetadataRecord{}, nil, fmt.Errorf("load blob: %w", err)
+	}
 	return rec, payload, nil
 }
 
