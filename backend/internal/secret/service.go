@@ -73,7 +73,7 @@ func (s *Service) Load(ctx context.Context, id string) (metadata.MetadataRecord,
 	return rec, payload, nil
 }
 
-// Delete removes both blob + metadata.
+// Delete removes both blob and metadata.
 func (s *Service) Delete(ctx context.Context, id string) error {
 	if err := s.meta.Delete(ctx, id); err != nil {
 		return err
