@@ -41,7 +41,6 @@ func TestRedisStoreCRUD(t *testing.T) {
 		FileName:    "cipher.bin",
 		ContentType: "application/octet-stream",
 		Size:        64,
-		TTLSeconds:  60,
 		ExpiresAt:   time.Now().Add(time.Minute),
 	}
 	if err := store.Create(ctx, rec); err != nil {

@@ -13,10 +13,9 @@ func TestBoltStoreCRUD(t *testing.T) {
 		t.Fatalf("new bolt: %v", err)
 	}
 	rec := MetadataRecord{
-		ID:         "id",
-		FileName:   "cipher.bin",
-		TTLSeconds: 60,
-		ExpiresAt:  time.Now().Add(time.Hour),
+		ID:        "id",
+		FileName:  "cipher.bin",
+		ExpiresAt: time.Now().Add(time.Hour),
 	}
 	ctx := context.Background()
 	if err := store.Create(ctx, rec); err != nil {
