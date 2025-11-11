@@ -8,6 +8,7 @@
     "dev": "npm run sync-vendor && tailwindcss -i ./src/app.css -o ../backend/web/static/app.css --watch"
   },
   "devDependencies": {
+    "@tailwindcss/cli": "^4.1.17",
     "daisyui": "^5.4.7",
     "htmx.org": "^2.0.8",
     "tailwindcss": "^4.1"
