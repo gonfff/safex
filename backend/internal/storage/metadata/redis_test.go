@@ -42,6 +42,7 @@ func TestRedisStoreCRUD(t *testing.T) {
 		ContentType: "application/octet-stream",
 		Size:        64,
 		ExpiresAt:   time.Now().Add(time.Minute),
+		PayloadType: PayloadTypeFile,
 	}
 	if err := store.Create(ctx, rec); err != nil {
 		t.Fatalf("create: %v", err)
@@ -52,6 +53,9 @@ func TestRedisStoreCRUD(t *testing.T) {
 	}
 	if out.FileName != rec.FileName {
 		t.Fatalf("unexpected filename: %s", out.FileName)
+	}
+	if out.PayloadType != rec.PayloadType {
+		t.Fatalf("unexpected payload type: %s", out.PayloadType)
 	}
 	if err := store.Delete(ctx, rec.ID); err != nil {
 		t.Fatalf("delete: %v", err)

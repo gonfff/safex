@@ -1,5 +1,5 @@
 {{define "revealResult"}}
-<div class="card bg-base-200 border border-base-300 shadow-xl">
+<div class="card bg-base-200 border border-base-300 shadow-xl" {{if .Record.PayloadType}}data-secret-type="{{.Record.PayloadType}}"{{end}}>
     <div class="card-body space-y-4">
         {{if .Error}}
             <div class="alert alert-error">

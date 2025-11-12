@@ -12,6 +12,8 @@ import init, { encrypt } from "/static/pkg/safex_wasm.js";
     const clearFileButton = document.getElementById("clear-file-button");
     const form = document.getElementById("create-form");
     const pinInput = document.getElementById("pin-code");
+    const createCard = document.getElementById("create-card");
+    const resultContainer = document.getElementById("create-result");
 
     if (!messageInput || !fileInput || !dropzone || !form || !pinInput) {
       return;
@@ -96,6 +98,12 @@ import init, { encrypt } from "/static/pkg/safex_wasm.js";
       messageInput.focus();
     });
 
+    const PAYLOAD_TYPE_FIELD = "payload_type";
+    const PayloadType = {
+      FILE: "file",
+      TEXT: "text",
+    };
+
     // Перехватываем отправку формы для шифрования
     form.addEventListener("submit", async (e) => {
       e.preventDefault();
@@ -121,6 +129,7 @@ import init, { encrypt } from "/static/pkg/safex_wasm.js";
             type: "application/octet-stream",
           });
           formData.set("file", encryptedBlob, file.name + ".encrypted");
+          formData.set(PAYLOAD_TYPE_FIELD, PayloadType.FILE);
         } else if (message) {
           // Шифруем текстовое сообщение
           const messageBytes = new TextEncoder().encode(message);
@@ -132,6 +141,10 @@ import init, { encrypt } from "/static/pkg/safex_wasm.js";
           });
           formData.set("file", encryptedBlob, "message.encrypted");
           formData.delete("message");
+          formData.set(PAYLOAD_TYPE_FIELD, PayloadType.TEXT);
+        } else {
+          alert("Нужно выбрать файл или ввести сообщение");
+          return;
         }
 
         // Удаляем пинкод из formData (не отправляем на сервер)
@@ -144,10 +157,24 @@ import init, { encrypt } from "/static/pkg/safex_wasm.js";
         });
 
         const result = await response.text();
-        document.getElementById("create-result").innerHTML = result;
+        if (resultContainer) {
+          resultContainer.innerHTML = result;
+          document.dispatchEvent(new Event("safex:refresh-language"));
+        }
+
+        if (response.ok && response.status === 201) {
+          createCard?.classList.add("hidden");
+          resultContainer?.scrollIntoView({
+            behavior: "smooth",
+            block: "start",
+          });
+        } else {
+          createCard?.classList.remove("hidden");
+        }
       } catch (error) {
         console.error("Ошибка шифрования:", error);
         alert("Ошибка при шифровании данных");
+        createCard?.classList.remove("hidden");
       }
     });
   })();

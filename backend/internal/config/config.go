@@ -34,7 +34,7 @@ func Load() Config {
 	cfg := Config{
 		HTTPAddr:          getStrEnv("SAFEX_API_ADDR", ":8000"),
 		MaxPayloadMB:      getIntEnv("SAFEX_MAX_PAYLOAD_MB", 25),
-		RequestsPerMinute: getIntEnv("SAFEX_RATE_LIMIT_PER_MINUTE", 10),
+		RequestsPerMinute: getIntEnv("SAFEX_RATE_LIMIT_PER_MINUTE", 100),
 		BlobBackend:       getStrEnv("SAFEX_BLOB_BACKEND", "local"),
 		BlobDir:           getStrEnv("SAFEX_BLOB_DIR", "./.storage/blobs"),
 		S3Bucket:          os.Getenv("SAFEX_S3_BUCKET"),

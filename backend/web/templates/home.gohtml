@@ -78,7 +78,7 @@
     </header>
     <main class="px-6 py-12 flex items-center justify-center">
         <section class="w-full max-w-3xl space-y-6">
-            <div class="card bg-base-200 border border-base-300 shadow-xl">
+            <div id="create-card" class="card bg-base-200 border border-base-300 shadow-xl">
                 <div class="card-body space-y-6">
                     <header class="space-y-2">
                         <h1 class="text-2xl font-bold" data-i18n="form.title"></h1>
@@ -166,6 +166,8 @@
     <script src="/static/vendor/htmx.min.js"></script>
     <script src="/static/js/theme.js"></script>
     <script src="/static/js/language.js"></script>
+    <div id="toast-root" class="toast toast-top toast-end gap-2 pointer-events-none" aria-live="assertive"
+        aria-atomic="true"></div>
     <script type="module" src="/static/js/form.js"></script>
 </body>
 

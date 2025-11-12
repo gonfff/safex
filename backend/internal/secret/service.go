@@ -18,6 +18,7 @@ type CreateInput struct {
 	ContentType string
 	Payload     []byte
 	TTL         time.Duration
+	PayloadType metadata.PayloadType
 }
 
 // Service orchestrates metadata + blob stores.
@@ -36,12 +37,18 @@ func NewService(blob storage.BlobStore, meta storage.MetadataStore, logger zerol
 func (s *Service) Create(ctx context.Context, input CreateInput) (metadata.MetadataRecord, error) {
 	id := uuid.New().String()
 
+	payloadType := input.PayloadType
+	if payloadType == "" {
+		payloadType = metadata.PayloadTypeFile
+	}
+
 	record := metadata.MetadataRecord{
 		ID:          id,
 		FileName:    input.FileName,
 		ContentType: input.ContentType,
 		Size:        int64(len(input.Payload)),
 		ExpiresAt:   time.Now().Add(input.TTL),
+		PayloadType: payloadType,
 	}
 
 	if err := s.blob.Put(ctx, id, input.Payload); err != nil {

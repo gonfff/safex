@@ -152,9 +152,11 @@ func (s *Server) handleCreateSecret(c *gin.Context) {
 	}
 
 	message := strings.TrimSpace(c.PostForm("message"))
+	payloadTypeRaw := strings.TrimSpace(strings.ToLower(c.PostForm("payload_type")))
 	fileHeader, err := c.FormFile("file")
 	var payload []byte
 	input := secret.CreateInput{TTL: ttl}
+	usedPlainText := false
 
 	switch {
 	case err == nil:
@@ -171,26 +173,28 @@ func (s *Server) handleCreateSecret(c *gin.Context) {
 		}
 	case errors.Is(err, http.ErrMissingFile):
 		if message == "" {
-			s.renderCreateResult(c, http.StatusBadRequest, errors.New("нужно прикрепить файл или ввести текст"))
+			s.renderCreateResult(c, http.StatusBadRequest, errors.New("File or message is required"))
 			return
 		}
+		usedPlainText = true
 		payload = []byte(message)
 		if len(payload) > s.cfg.MaxPayloadBytes() {
-			s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("сообщение превышает %d байт", s.cfg.MaxPayloadBytes()))
+			s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("message exceeds %d bytes", s.cfg.MaxPayloadBytes()))
 			return
 		}
 		input.FileName = "message.txt"
 		input.ContentType = "text/plain; charset=utf-8"
 	default:
-		s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("не удалось прочитать файл: %w", err))
+		s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("failed to read file: %w", err))
 		return
 	}
 	input.Payload = payload
+	input.PayloadType = normalizePayloadType(payloadTypeRaw, usedPlainText)
 	ctx := c.Request.Context()
 	rec, err := s.svc.Create(ctx, input)
 	if err != nil {
 		s.logger.Error().Err(err).Msg("create secret")
-		s.renderCreateResult(c, http.StatusInternalServerError, errors.New("не удалось сохранить секрет"))
+		s.renderCreateResult(c, http.StatusInternalServerError, errors.New("failed to save secret"))
 		return
 	}
 
@@ -215,7 +219,7 @@ func (s *Server) handleLoadSecret(c *gin.Context) {
 	if id == "" {
 		c.Status(http.StatusBadRequest)
 		s.renderTemplate(c, "retrieve", getSecretData{
-			Error: errors.New("не заполнен ID секрета"),
+			Error: errors.New("secret ID is required"),
 			Meta:  meta,
 		})
 		return
@@ -267,6 +271,9 @@ func (s *Server) renderRevealResult(c *gin.Context, status int, renderErr error,
 	}
 	if rec != nil {
 		data.Record = rec
+		if rec.PayloadType == metadata.PayloadTypeText {
+			data.IsText = true
+		}
 	}
 	if len(payload) > 0 {
 		data.PayloadBase64 = base64.StdEncoding.EncodeToString(payload)
@@ -288,13 +295,13 @@ func (s *Server) readUploadedFile(fileHeader *multipart.FileHeader) ([]byte, err
 	limit := int64(s.cfg.MaxPayloadBytes())
 	payload, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err != nil {
-		return nil, fmt.Errorf("не удалось прочитать файл: %w", err)
+		return nil, fmt.Errorf("failed to read file: %w", err)
 	}
 	if int64(len(payload)) > limit {
-		return nil, fmt.Errorf("размер файла превышает %d байт", limit)
+		return nil, fmt.Errorf("file size exceeds %d bytes", limit)
 	}
 	if len(payload) == 0 {
-		return nil, errors.New("файл пустой")
+		return nil, errors.New("file is empty")
 	}
 	return payload, nil
 }
@@ -406,4 +413,17 @@ func (s *Server) makeAbsoluteURL(r *http.Request, path string) string {
 	}
 
 	return fmt.Sprintf("%s://%s%s", scheme, host, path)
+}
+
+func normalizePayloadType(raw string, usedPlainText bool) metadata.PayloadType {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case string(metadata.PayloadTypeText):
+		return metadata.PayloadTypeText
+	case string(metadata.PayloadTypeFile):
+		return metadata.PayloadTypeFile
+	}
+	if usedPlainText {
+		return metadata.PayloadTypeText
+	}
+	return metadata.PayloadTypeFile
 }

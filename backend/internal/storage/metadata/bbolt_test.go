@@ -13,9 +13,10 @@ func TestBoltStoreCRUD(t *testing.T) {
 		t.Fatalf("new bolt: %v", err)
 	}
 	rec := MetadataRecord{
-		ID:        "id",
-		FileName:  "cipher.bin",
-		ExpiresAt: time.Now().Add(time.Hour),
+		ID:          "id",
+		FileName:    "cipher.bin",
+		ExpiresAt:   time.Now().Add(time.Hour),
+		PayloadType: PayloadTypeFile,
 	}
 	ctx := context.Background()
 	if err := store.Create(ctx, rec); err != nil {
@@ -27,6 +28,9 @@ func TestBoltStoreCRUD(t *testing.T) {
 	}
 	if out.FileName != rec.FileName {
 		t.Fatalf("unexpected filename: %s", out.FileName)
+	}
+	if out.PayloadType != rec.PayloadType {
+		t.Fatalf("unexpected payload type: %s", out.PayloadType)
 	}
 	if err := store.Delete(ctx, rec.ID); err != nil {
 		t.Fatalf("delete: %v", err)

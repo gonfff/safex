@@ -1,46 +1,34 @@
 {{define "createResult"}}
-<div class="card bg-base-200 border border-base-300 shadow-xl" {{if .Record.ID}}data-secret-id="{{.Record.ID}}"{{end}}>
+<div class="card bg-base-200 border border-base-300 shadow-xl" {{if .Record.ID}}data-secret-id="{{.Record.ID}}" {{end}}>
     <div class="card-body space-y-4">
         {{if .Error}}
-            <div class="alert alert-error">
-                <span>{{.Error.Error}}</span>
-            </div>
+        <div class="alert alert-error">
+            <span>{{.Error.Error}}</span>
+        </div>
         {{else if .Record.ID}}
-            <div class="space-y-4">
-                <header class="space-y-1">
-                    <p class="badge badge-success badge-lg w-fit">Секрет создан</p>
-                    <p class="text-sm text-base-content/70">Отправьте ссылку получателю и PIN по другому каналу связи.</p>
-                </header>
-                <div class="rounded-xl bg-base-100 border border-base-300 p-4 space-y-2">
-                    <span class="text-xs uppercase tracking-wide text-base-content/60">Ссылка</span>
-                    <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
-                        <a href="{{.SharePath}}" class="link link-primary break-all" data-secret-id="{{.Record.ID}}">{{.ShareURL}}</a>
-                        <button type="button" class="btn btn-sm btn-outline" data-action="copy-link" data-copy-text="{{.ShareURL}}">Скопировать</button>
-                    </div>
-                </div>
-                <div class="grid gap-3 text-sm sm:grid-cols-2">
-                    <div>
-                        <p class="text-xs uppercase text-base-content/60">PIN</p>
-                        <p class="font-semibold tracking-widest">{{.Pin}}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase text-base-content/60">Доступно</p>
-                        <p class="font-semibold">~{{printf "%.0f" .TTL.Minutes}} минут</p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase text-base-content/60">Файл</p>
-                        <p class="font-semibold">{{.Record.FileName}}</p>
-                    </div>
-                    <div>
-                        <p class="text-xs uppercase text-base-content/60">Размер</p>
-                        <p class="font-semibold">{{.Record.Size}} байт</p>
-                    </div>
+        <div class="space-y-4">
+            <header class="space-y-1">
+                <p class="badge badge-success badge-lg w-fit" data-i18n="form.result.badge"></p>
+                <p class="text-sm text-base-content/70" data-i18n="form.result.instructions"></p>
+            </header>
+            <div class="rounded-xl bg-base-100 border border-base-300 p-4 space-y-2">
+                <span class="text-xs uppercase tracking-wide text-base-content/60"
+                    data-i18n="form.result.linkLabel"></span>
+                <div class="flex flex-col sm:flex-row gap-3 items-start sm:items-center">
+                    <span class="break-all" data-secret-id="{{.Record.ID}}">{{.ShareURL}}</span>
                 </div>
             </div>
+            <div class="flex gap-3">
+                <button type="button" class="btn btn-sm btn-primary flex-1" data-action="copy-link"
+                    data-copy-text="{{.ShareURL}}" data-i18n="form.result.copyLink"
+                    onclick="navigator.clipboard.writeText('{{.ShareURL}}')"></button>
+                <a href="/" class="btn btn-sm btn-outline flex-1" data-i18n="form.newSecretBtn"></a>
+            </div>
+        </div>
         {{else}}
-            <div class="alert alert-info">
-                <span>Секрет обработан.</span>
-            </div>
+        <div class="alert alert-info">
+            <span></span>
+        </div>
         {{end}}
     </div>
 </div>

@@ -23,6 +23,7 @@ func TestServiceCreateSuccess(t *testing.T) {
 		ContentType: "text/plain",
 		Payload:     []byte("super secret"),
 		TTL:         30 * time.Second,
+		PayloadType: metadata.PayloadTypeText,
 	}
 
 	record, err := service.Create(context.Background(), input)
@@ -44,6 +45,9 @@ func TestServiceCreateSuccess(t *testing.T) {
 	}
 	if record.ExpiresAt.Before(time.Now()) {
 		t.Fatalf("secret should expire in the future, got %v", record.ExpiresAt)
+	}
+	if record.PayloadType != metadata.PayloadTypeText {
+		t.Fatalf("PayloadType mismatch: got %s want %s", record.PayloadType, metadata.PayloadTypeText)
 	}
 	if len(blobStore.putCalls) != 1 {
 		t.Fatalf("expected blob to be stored once, got %d", len(blobStore.putCalls))

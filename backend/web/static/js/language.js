@@ -36,6 +36,19 @@
         title: "Create a secure message",
         subtitle:
           "Share sensitive information that will self-destruct after it is read.",
+        newSecretBtn: "Create another secret",
+        result: {
+          badge: "Secret created",
+          instructions: "Share the link with the recipient and send the PIN via another channel.",
+          linkLabel: "Link",
+          copyLink: "Copy link",
+          pinLabel: "PIN",
+          ttlLabel: "Available",
+          ttlUnit: "minutes",
+          fileLabel: "File",
+          sizeLabel: "Size",
+          sizeUnit: "bytes",
+        },
         fields: {
           message: {
             label: "Message text or file",
@@ -121,6 +134,19 @@
         title: "Создать защищенное сообщение",
         subtitle:
           "Поделитесь чувствительной информацией, которая самоуничтожится после прочтения.",
+        newSecretBtn: "Создать новый секрет",
+        result: {
+          badge: "Секрет создан",
+          instructions: "Отправьте ссылку получателю и PIN по другому каналу связи.",
+          linkLabel: "Ссылка",
+          copyLink: "Скопировать ссылку",
+          pinLabel: "PIN",
+          ttlLabel: "Доступно",
+          ttlUnit: "минут",
+          fileLabel: "Файл",
+          sizeLabel: "Размер",
+          sizeUnit: "байт",
+        },
         fields: {
           message: {
             label: "Текст сообщения или файл",
@@ -192,6 +218,7 @@
   function applyLanguage(lang) {
     const languageKey = translations[lang] ? lang : LANG_EN;
     const activeDictionary = translations[languageKey];
+    currentLanguage = languageKey;
     document.querySelectorAll("[data-i18n]").forEach((node) => {
       const key = node.getAttribute("data-i18n");
       const value = resolveTranslation(activeDictionary, key);
@@ -215,6 +242,8 @@
     updateLanguageButtons(languageKey);
   }
 
+  let currentLanguage = LANG_EN;
+
   function detectInitialLanguage() {
     const saved = localStorage.getItem(STORAGE_KEY);
     if (translations[saved]) {
@@ -230,6 +259,9 @@
   function initLanguage() {
     const initialLang = detectInitialLanguage();
     applyLanguage(initialLang);
+    document.addEventListener("safex:refresh-language", () => {
+      applyLanguage(currentLanguage);
+    });
     langButtons.forEach((btn) => {
       btn.addEventListener("click", () => {
         applyLanguage(btn.dataset.lang);
