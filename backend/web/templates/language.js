@@ -1,0 +1,233 @@
+(function () {
+  const LANG_RU = "ru";
+  const LANG_EN = "en";
+  const STORAGE_KEY = "safex-language";
+  const translations = {
+    [LANG_EN]: {
+      hero: {
+        kicker: "Safe secret exchange",
+      },
+      nav: {
+        overview: "Overview",
+        source: "Source code",
+        faq: "FAQ",
+      },
+      guide: {
+        intro: {
+          title: "Safex is a lightweight secure sharing service",
+          body: "Safex is a simple service whose only mission is safe data exchange. Encryption runs on the client, so even the developers cannot read your message. The server merely forwards the payload, and after the recipient opens the link both the link and the data self-destruct.",
+        },
+        steps: {
+          title: "How to use Safex",
+          one: "Attach a file or paste the text of your secret.",
+          two: "Come up with a six-digit PIN code.",
+          three: "Choose how long the link should remain available.",
+          four: "Copy the generated link and share it with the recipient.",
+          five: "Send the PIN via another communication channel.",
+        },
+        docs: {
+          title: "Documentation",
+          body: "Find detailed guides and API references in our documentation <a href='https://gonfff.github.io/safex/' target='_blank' class='link link-primary'>here</a>.",
+        },
+      },
+      cta: {
+        primary: "Generate link",
+      },
+      form: {
+        title: "Create a secure message",
+        subtitle:
+          "Share sensitive information that will self-destruct after it is read.",
+        fields: {
+          message: {
+            label: "Message text or file",
+            placeholder: "Paste secret text or drop a file below",
+          },
+          file: {
+            dropPrimary: "Drop a file",
+            dropSecondary: "or click to select",
+            attachedLabel: "Attached:",
+            clear: "Clear file",
+          },
+          pin: {
+            label: "6-digit PIN",
+            placeholder: "For example, 842119",
+            helper: "The recipient must enter the PIN before decryption.",
+          },
+          expiry: {
+            label: "Expiration",
+            helper:
+              "After the timer ends, the message is deleted automatically.",
+            minutes: "minutes",
+            hours: "hours",
+            days: "days",
+          },
+        },
+        cta: "Generate link",
+      },
+      retrieve: {
+        form: {
+          title: "Retrieve the message",
+          subtitle: "Enter the PIN to decrypt the secret payload.",
+          pinLabel: "PIN",
+          pinPlaceholder: "For example, 842119",
+          cta: "Unlock message",
+        },
+        result: {
+          badge: "Message decrypted",
+          title: "Secret available",
+          subtitle:
+            "The payload has been destroyed on the server. Save a copy if you still need it.",
+          textLabel: "Message text",
+          fileLabel: "Encrypted file",
+          copy: "Copy",
+          download: "Download",
+        },
+      },
+    },
+    [LANG_RU]: {
+      hero: {
+        kicker: "Безопасный обмен секретами",
+      },
+      nav: {
+        overview: "Описание",
+        source: "Исходный код",
+        faq: "FAQ",
+      },
+      guide: {
+        intro: {
+          title: "Safex — простой сервис для безопасного обмена",
+          body: "Safex — это простой сервис, единственная цель которого — безопасный обмен данными. Шифрование происходит на стороне клиента, поэтому даже у разработчиков нет возможности прочитать сообщение. Сервер лишь передаёт информацию между пользователями, а после прочтения ссылка и данные саморазрушаются.",
+        },
+        docs: {
+          title: "Документация",
+          body: "Подробные руководства вы найдёте в документации <a href='https://gonfff.github.io/safex/' target='_blank' class='link link-primary'>здесь</a>.",
+        },
+        steps: {
+          title: "Как пользоваться",
+          one: "Прикрепите файл или введите текст сообщения.",
+          two: "Придумайте шестизначный PIN-код.",
+          three: "Определите, сколько времени ссылка будет доступна.",
+          four: "Скопируйте сгенерированную ссылку и отправьте её получателю.",
+          five: "Передайте PIN-код по другому каналу связи.",
+        },
+      },
+      cta: {
+        primary: "Создать ссылку",
+      },
+      form: {
+        title: "Создать защищенное сообщение",
+        subtitle:
+          "Поделитесь чувствительной информацией, которая самоуничтожится после прочтения.",
+        fields: {
+          message: {
+            label: "Текст сообщения или файл",
+            placeholder: "Вставьте секретный текст или перетащите файл ниже",
+          },
+          file: {
+            dropPrimary: "Перетащите файл",
+            dropSecondary: "или нажмите, чтобы выбрать",
+            attachedLabel: "Прикреплено:",
+            clear: "Очистить файл",
+          },
+          pin: {
+            label: "6-значный PIN",
+            placeholder: "Например, 842119",
+            helper: "Получателю понадобится PIN перед расшифровкой.",
+          },
+          expiry: {
+            label: "Срок действия",
+            helper: "После истечения срока сообщение удалится автоматически.",
+            minutes: "минуты",
+            hours: "часы",
+            days: "дни",
+          },
+        },
+        cta: "Создать ссылку",
+      },
+      retrieve: {
+        form: {
+          title: "Получить сообщение",
+          subtitle: "Введите PIN-код, чтобы расшифровать секретное сообщение.",
+          pinLabel: "PIN-код",
+          pinPlaceholder: "Например, 842119",
+          cta: "Получить сообщение",
+        },
+        result: {
+          badge: "Сообщение расшифровано",
+          title: "Секрет доступен",
+          subtitle: "Сообщение удалено с сервера, сохраните его, если нужно.",
+          textLabel: "Текст сообщения",
+          fileLabel: "Зашифрованный файл",
+          copy: "Скопировать",
+          download: "Скачать",
+        },
+      },
+    },
+  };
+
+  const langButtons = document.querySelectorAll("[data-lang]");
+
+  function resolveTranslation(dict, path) {
+    return path
+      .split(".")
+      .reduce((acc, part) => (acc ? acc[part] : undefined), dict);
+  }
+
+  function updateLanguageButtons(activeLang) {
+    langButtons.forEach((btn) => {
+      const isActive = btn.dataset.lang === activeLang;
+      btn.classList.toggle("btn-active", isActive);
+      btn.setAttribute("aria-pressed", String(isActive));
+    });
+  }
+
+  function applyLanguage(lang) {
+    const languageKey = translations[lang] ? lang : LANG_EN;
+    const activeDictionary = translations[languageKey];
+    document.querySelectorAll("[data-i18n]").forEach((node) => {
+      const key = node.getAttribute("data-i18n");
+      const value = resolveTranslation(activeDictionary, key);
+      if (typeof value === "string") {
+        if (node.hasAttribute("data-i18n-html")) {
+          node.innerHTML = value;
+        } else {
+          node.textContent = value;
+        }
+      }
+    });
+    document.querySelectorAll("[data-i18n-placeholder]").forEach((node) => {
+      const key = node.getAttribute("data-i18n-placeholder");
+      const value = resolveTranslation(activeDictionary, key);
+      if (typeof value === "string") {
+        node.setAttribute("placeholder", value);
+      }
+    });
+    document.documentElement.lang = languageKey === LANG_RU ? "ru" : "en";
+    localStorage.setItem(STORAGE_KEY, languageKey);
+    updateLanguageButtons(languageKey);
+  }
+
+  function detectInitialLanguage() {
+    const saved = localStorage.getItem(STORAGE_KEY);
+    if (translations[saved]) {
+      return saved;
+    }
+    const browserLang =
+      navigator.language && navigator.language.toLowerCase().startsWith("ru")
+        ? LANG_RU
+        : LANG_EN;
+    return translations[browserLang] ? browserLang : LANG_EN;
+  }
+
+  function initLanguage() {
+    const initialLang = detectInitialLanguage();
+    applyLanguage(initialLang);
+    langButtons.forEach((btn) => {
+      btn.addEventListener("click", () => {
+        applyLanguage(btn.dataset.lang);
+      });
+    });
+  }
+
+  initLanguage();
+})();

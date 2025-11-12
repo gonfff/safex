@@ -1,0 +1,14 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+  themes: winter --default, dim --prefersdark;
+}
+
+@layer components {
+  .input-title {
+    @apply block text-xs font-semibold tracking-[0.2em] uppercase text-base-content/70;
+  }
+
+  .input-helper {
+    @apply text-xs text-base-content/60;
+  }
+}

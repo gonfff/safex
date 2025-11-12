@@ -22,15 +22,14 @@ type CreateInput struct {
 
 // Service orchestrates metadata + blob stores.
 type Service struct {
-	blob    storage.BlobStore
-	meta    storage.MetadataStore
-	logger  zerolog.Logger
-	maxSize int64
+	blob   storage.BlobStore
+	meta   storage.MetadataStore
+	logger zerolog.Logger
 }
 
 // NewService builds a Service.
-func NewService(blob storage.BlobStore, meta storage.MetadataStore, logger zerolog.Logger, maxSize int64) *Service {
-	return &Service{blob: blob, meta: meta, logger: logger, maxSize: maxSize}
+func NewService(blob storage.BlobStore, meta storage.MetadataStore, logger zerolog.Logger) *Service {
+	return &Service{blob: blob, meta: meta, logger: logger}
 }
 
 // Create creates a new secret and returns its metadata.

@@ -218,5 +218,5 @@ func TestServiceDeleteBlobError(t *testing.T) {
 }
 
 func newTestService(blob storage.BlobStore, meta storage.MetadataStore) *Service {
-	return NewService(blob, meta, zerolog.New(io.Discard), 1024)
+	return NewService(blob, meta, zerolog.New(io.Discard))
 }
