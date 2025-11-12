@@ -1,0 +1,124 @@
+{{define "retrieve"}}
+<!DOCTYPE html>
+<html lang="ru" data-theme="winter">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Safex — расшифруйте секретное сообщение по ссылке" />
+    {{with .Meta}}
+    <link rel="canonical" href="{{.Canonical}}" />
+    <meta property="og:type" content="{{.OGType}}" />
+    <meta property="og:url" content="{{.Canonical}}" />
+    <meta property="og:title" content="{{.OGTitle}}" />
+    <meta property="og:description" content="{{.OGDescription}}" />
+    {{if .OGImage}}
+    <meta property="og:image" content="{{.OGImage}}" />{{end}}
+    {{end}}
+    <title>{{if .Title}}{{.Title}}{{else}}Safex — Получить секрет{{end}}</title>
+    <link rel="stylesheet" href="/static/css/output.css" />
+    <style>
+        .htmx-indicator {
+            opacity: 0;
+            transition: opacity .2s ease;
+        }
+
+        .htmx-request .htmx-indicator,
+        .htmx-request.htmx-indicator {
+            opacity: 1;
+        }
+    </style>
+</head>
+
+<body class="font-mono min-h-screen bg-base-100 text-base-content">
+    <header class="navbar bg-base-200 px-6 py-3">
+        <div class="navbar-start items-center gap-3">
+            <a href="/" class="text-xl font-bold">Safex</a>
+            <span class="text-sm opacity-70" data-i18n="hero.kicker">Безопасный обмен секретами</span>
+        </div>
+        <div class="navbar-end items-center gap-3">
+            <nav class="hidden md:flex items-center gap-3 text-sm">
+                <a href="https://github.com/gonfff/safex" class="link link-hover" target="_blank"
+                    rel="noreferrer noopener" data-i18n="nav.source">Исходный код</a>
+                <a href="/faq" class="link link-hover" data-i18n="nav.faq">FAQ</a>
+            </nav>
+            <div class="dropdown dropdown-end">
+                <button
+                    class="btn btn-ghost btn-square btn-sm rounded-lg border border-transparent hover:border-base-content/60"
+                    tabindex="0" type="button" aria-label="Switch language">
+                    <svg viewBox="0 0 25 25" class="h-6 w-6" fill="none" xmlns="http://www.w3.org/2000/svg"
+                        stroke="currentColor" stroke-width="1.2">
+                        <path stroke-linecap="round" stroke-linejoin="round"
+                            d="M5.5 16.5H19.5M5.5 8.5H19.5M4.5 12.5H20.5M12.5 20.5C12.5 20.5 8 18.5 8 12.5C8 6.5 12.5 4.5 12.5 4.5M12.5 4.5C12.5 4.5 17 6.5 17 12.5C17 18.5 12.5 20.5 12.5 20.5M12.5 4.5V20.5M20.5 12.5C20.5 16.9183 16.9183 20.5 12.5 20.5C8.08172 20.5 4.5 16.9183 4.5 12.5C4.5 8.08172 8.08172 4.5 12.5 4.5C16.9183 4.5 20.5 8.08172 20.5 12.5Z" />
+                    </svg>
+                </button>
+                <ul tabindex="0"
+                    class="dropdown-content menu menu-sm bg-base-200 rounded-box z-[1] mt-3 w-28 p-2 shadow">
+                    <li><button class="btn btn-ghost btn-sm justify-start" type="button" data-lang="ru">RU</button></li>
+                    <li><button class="btn btn-ghost btn-sm justify-start" type="button" data-lang="en">EN</button></li>
+                </ul>
+            </div>
+            <label
+                class="swap swap-rotate btn btn-ghost btn-square btn-sm rounded-lg border border-transparent hover:border-base-content/60"
+                aria-label="Toggle theme">
+                <input id="theme-toggle" type="checkbox" class="theme-controller" />
+                <svg class="swap-off h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M12 4.5v-3M12 22.5v-3M4.5 12h-3M22.5 12h-3" />
+                    <path d="M5.636 5.636l-2.121-2.12M20.485 20.485l-2.121-2.121" />
+                    <path d="M5.636 18.364l-2.121 2.121M20.485 3.515l-2.121 2.121" />
+                    <path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                <svg class="swap-on h-6 w-6" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 25 25" fill="none"
+                    stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+                </svg>
+            </label>
+        </div>
+    </header>
+    <main class="px-6 py-12 flex items-center justify-center">
+        <section class="w-full max-w-2xl space-y-6">
+            <div class="card bg-base-200 border border-base-300 shadow-xl">
+                <div class="card-body space-y-6">
+                    <header class="space-y-2 text-center">
+                        <h1 class="text-3xl font-bold" data-i18n="retrieve.form.title">Получить сообщение</h1>
+                        <p class="text-base text-base-content/70" data-i18n="retrieve.form.subtitle">Введите PIN, чтобы
+                            расшифровать секрет.</p>
+                    </header>
+                    <form class="space-y-4" id="unlock-form" hx-post="/secrets/reveal" hx-target="#reveal-result"
+                        hx-swap="innerHTML" hx-indicator="#reveal-indicator" method="post">
+                        <input type="hidden" name="secret_id" value="{{.SecretID}}" />
+                        <div class="space-y-2">
+                            <label class="label" for="unlock-pin">
+                                <span class="label-text font-semibold" data-i18n="retrieve.form.pinLabel">PIN-код</span>
+                            </label>
+                            <input id="unlock-pin" name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}"
+                                placeholder="" data-i18n-placeholder="retrieve.form.pinPlaceholder"
+                                class="input input-bordered w-full bg-base-100" required />
+                        </div>
+                        <div class="card-actions">
+                            <button type="submit" class="btn btn-primary w-full" data-i18n="retrieve.form.cta">Получить
+                                сообщение</button>
+                            <span id="reveal-indicator"
+                                class="loading loading-spinner loading-sm text-primary htmx-indicator"></span>
+                        </div>
+                    </form>
+                </div>
+            </div>
+            <div id="reveal-result" class="space-y-4">
+                {{if .Error}}
+                <div class="alert alert-error">
+                    <span>{{.Error.Error}}</span>
+                </div>
+                {{end}}
+            </div>
+        </section>
+    </main>
+    <script src="/static/vendor/htmx.min.js"></script>
+    <script src="/static/js/theme.js"></script>
+    <script src="/static/js/language.js"></script>
+    <script src="/static/js/retrieve.js"></script>
+</body>
+
+</html>
+{{end}}

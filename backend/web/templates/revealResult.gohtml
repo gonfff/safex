@@ -1,0 +1,51 @@
+{{define "revealResult"}}
+<div class="card bg-base-200 border border-base-300 shadow-xl">
+    <div class="card-body space-y-4">
+        {{if .Error}}
+            <div class="alert alert-error">
+                <span>{{.Error.Error}}</span>
+            </div>
+        {{else if .Record}}
+            <header class="space-y-1">
+                <p class="badge badge-success badge-lg w-fit" data-i18n="retrieve.result.badge">Сообщение расшифровано</p>
+                <h2 class="text-2xl font-semibold" data-i18n="retrieve.result.title">Секрет доступен</h2>
+                <p class="text-sm text-base-content/70" data-i18n="retrieve.result.subtitle">Данные удалены с сервера, сохраните копию при необходимости.</p>
+            </header>
+            {{if and .IsText .PayloadText}}
+                <div class="space-y-3" id="message-content-wrapper">
+                    <label class="label">
+                        <span class="label-text text-xs uppercase tracking-wide text-base-content/60" data-i18n="retrieve.result.textLabel">Текст сообщения</span>
+                    </label>
+                    <div id="message-content" class="rounded-xl bg-base-100 border border-base-300 p-4 text-sm text-base-content whitespace-pre-wrap">{{.PayloadText}}</div>
+                </div>
+            {{end}}
+            <div class="space-y-3" id="file-content-wrapper">
+                <div class="flex items-center gap-3">
+                    <div class="rounded-full bg-base-100 p-3">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-6 h-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M9 8.25H7.5A2.25 2.25 0 005.25 10.5v7.5A2.25 2.25 0 007.5 20.25h9a2.25 2.25 0 002.25-2.25v-7.5A2.25 2.25 0 0016.5 8.25H15M9 8.25v-.75A2.25 2.25 0 0111.25 5.25h1.5A2.25 2.25 0 0115 7.5v.75M9 8.25h6" />
+                        </svg>
+                    </div>
+                    <div>
+                        <p class="text-sm font-semibold" id="file-name">{{.Record.FileName}}</p>
+                        <p class="text-xs text-base-content/60" data-i18n="retrieve.result.fileLabel">Зашифрованный файл</p>
+                    </div>
+                </div>
+                <p class="text-xs text-base-content/60">Размер: {{.Record.Size}} байт · Тип: {{.Record.ContentType}}</p>
+            </div>
+            <div class="card-actions flex-col sm:flex-row gap-3">
+                {{if and .IsText .PayloadText}}
+                    <button type="button" class="btn btn-primary w-full sm:flex-1" data-action="copy" data-copy-target="message-content" data-i18n="retrieve.result.copy">Скопировать</button>
+                {{end}}
+                {{if .PayloadBase64}}
+                    <button type="button" class="btn btn-outline w-full sm:flex-1" data-action="download" data-download-base64="{{.PayloadBase64}}" data-download-name="{{.Record.FileName}}" data-download-type="{{.Record.ContentType}}" data-i18n="retrieve.result.download">Скачать</button>
+                {{end}}
+            </div>
+        {{else}}
+            <div class="alert alert-info">
+                <span>Секрет обработан.</span>
+            </div>
+        {{end}}
+    </div>
+</div>
+{{end}}

@@ -1,9 +1,8 @@
 package server
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"html/template"
@@ -13,7 +12,9 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf8"
 
+	"github.com/gin-gonic/gin"
 	"github.com/rs/zerolog"
 
 	"github.com/gonfff/safex/backend/internal/config"
@@ -22,337 +23,387 @@ import (
 	"github.com/gonfff/safex/backend/web"
 )
 
-// Server wires HTTP handlers with the secret service.
+// Server exposes HTTP endpoints backed by the secret service.
 type Server struct {
-	service   *secret.Service
-	logger    zerolog.Logger
 	cfg       config.Config
-	httpSrv   *http.Server
+	svc       *secret.Service
+	logger    zerolog.Logger
+	engine    *gin.Engine
 	templates *template.Template
-	staticFS  http.Handler
+	httpSrv   *http.Server
 }
 
-// viewData carries data passed into HTML templates.
-type viewData struct {
-	Title           string
-	Active          string
-	PrefillSecret   string
-	ContentTemplate string
-}
-
-// New instantiates the HTTP server using Go's net/http stack.
-func New(cfg config.Config, svc *secret.Service, logger zerolog.Logger) *Server {
-	tmpl, err := web.Templates()
+// New wires up a Gin server instance with templates, static assets, and middleware.
+func New(cfg config.Config, svc *secret.Service, logger zerolog.Logger) (*Server, error) {
+	tpl, err := web.Templates()
 	if err != nil {
-		panic(fmt.Sprintf("failed to parse templates: %v", err))
+		return nil, fmt.Errorf("parse templates: %w", err)
 	}
 	staticFS, err := web.Static()
 	if err != nil {
-		panic(fmt.Sprintf("failed to load static assets: %v", err))
+		return nil, fmt.Errorf("load static assets: %w", err)
 	}
 
-	mux := http.NewServeMux()
-	srv := &Server{
-		service:   svc,
-		logger:    logger,
+	switch strings.ToLower(cfg.Environment) {
+	case "development", "dev":
+		gin.SetMode(gin.DebugMode)
+	default:
+		gin.SetMode(gin.ReleaseMode)
+	}
+
+	engine := gin.New()
+	engine.Use(gin.Recovery(), zerologMiddleware(logger))
+	engine.StaticFS("/static", http.FS(staticFS))
+
+	var limiter *rateLimiter
+	if cfg.RequestsPerMinute > 0 {
+		limiter = newRateLimiter(cfg.RequestsPerMinute, time.Minute)
+		engine.Use(rateLimitMiddleware(limiter, logger))
+	}
+
+	s := &Server{
 		cfg:       cfg,
-		templates: tmpl,
-		staticFS:  http.StripPrefix("/static/", http.FileServer(http.FS(staticFS))),
+		svc:       svc,
+		logger:    logger,
+		engine:    engine,
+		templates: tpl,
 	}
-
-	mux.HandleFunc("/healthcheck", srv.handleHealth)
-	mux.Handle("/static/", srv.staticFS)
-
-	mux.HandleFunc("/", srv.pageCreate)
-	mux.HandleFunc("/receive", srv.pageReceive)
-	mux.HandleFunc("/docs", srv.pageDocs)
-
-	mux.HandleFunc("/api/v1/secrets", srv.routeSecrets)
-	mux.HandleFunc("/api/v1/secrets/", srv.routeSecretsWithID)
-
-	srv.httpSrv = &http.Server{
-		Addr:    cfg.HTTPAddr,
-		Handler: srv.logRequests(mux),
-	}
-	return srv
+	s.registerRoutes()
+	return s, nil
 }
 
-// Start runs the HTTP server until context is canceled.
+// Start begins serving HTTP requests until the context is canceled.
 func (s *Server) Start(ctx context.Context) error {
-	shutdown := make(chan struct{})
+	s.httpSrv = &http.Server{
+		Addr:    s.cfg.HTTPAddr,
+		Handler: s.engine,
+	}
+
+	errCh := make(chan error, 1)
 	go func() {
-		<-ctx.Done()
-		ctxShutdown, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-		defer cancel()
-		_ = s.httpSrv.Shutdown(ctxShutdown)
-		close(shutdown)
+		if err := s.httpSrv.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			errCh <- err
+		}
 	}()
-	s.logger.Info().Str("addr", s.httpSrv.Addr).Msg("listening")
-	err := s.httpSrv.ListenAndServe()
-	if !errors.Is(err, http.ErrServerClosed) && err != nil {
+	s.logger.Info().Str("addr", s.cfg.HTTPAddr).Msg("server started")
+
+	select {
+	case <-ctx.Done():
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := s.httpSrv.Shutdown(shutdownCtx); err != nil {
+			return fmt.Errorf("shutdown server: %w", err)
+		}
+		return nil
+	case err := <-errCh:
 		return err
 	}
-	<-shutdown
-	return nil
 }
 
-func (s *Server) logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		start := time.Now()
-		next.ServeHTTP(w, r)
-		s.logger.Info().Str("method", r.Method).Str("path", r.URL.Path).Dur("duration", time.Since(start)).Msg("request")
-	})
+func (s *Server) registerRoutes() {
+	s.engine.GET("/healthz", s.handleHealth)
+	s.engine.GET("/", s.handleHome)
+	s.engine.GET("/faq", s.handleFAQ)
+	s.engine.POST("/secrets", s.handleCreateSecret)
+	s.engine.GET("/secret/:id", s.handleLoadSecret)
+	s.engine.GET("/secrets/:id", s.handleLoadSecret)
+	s.engine.POST("/secrets/reveal", s.handleRevealSecret)
 }
 
-// HTML pages -----------------------------------------------------------------
-
-func (s *Server) pageCreate(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/" {
-		s.notFound(w)
-		return
-	}
-	data := viewData{
-		Title:           "Safex — создать секрет",
-		Active:          "create",
-		ContentTemplate: "create-content",
-	}
-	s.render(w, data)
+func (s *Server) handleHealth(c *gin.Context) {
+	c.JSON(http.StatusOK, gin.H{"status": "ok"})
 }
 
-func (s *Server) pageReceive(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/receive" {
-		s.notFound(w)
-		return
+func (s *Server) handleHome(c *gin.Context) {
+	meta := s.buildPageMeta(c.Request, "", "Safex", "Safex - safe secret exchange")
+	data := homePageData{
+		DefaultTTLMinutes:  int(s.cfg.DefaultTTL.Minutes()),
+		MaxPayloadMB:       s.cfg.MaxPayloadMB,
+		RateLimitPerMinute: s.cfg.RequestsPerMinute,
+		Meta:               meta,
 	}
-	prefill := r.URL.Query().Get("secret")
-	data := viewData{
-		Title:           "Safex — получить секрет",
-		Active:          "receive",
-		PrefillSecret:   prefill,
-		ContentTemplate: "receive-content",
-	}
-	s.render(w, data)
+	c.Status(http.StatusOK)
+	s.renderTemplate(c, "home", data)
 }
 
-func (s *Server) pageDocs(w http.ResponseWriter, r *http.Request) {
-	if r.URL.Path != "/docs" {
-		s.notFound(w)
-		return
+func (s *Server) handleFAQ(c *gin.Context) {
+	meta := s.buildPageMeta(c.Request, "", "Safex", "Safex - safe secret exchange")
+	data := faqPageData{
+		Meta: meta,
 	}
-	data := viewData{
-		Title:           "Safex — документация",
-		Active:          "docs",
-		ContentTemplate: "docs-content",
-	}
-	s.render(w, data)
+	c.Status(http.StatusOK)
+	s.renderTemplate(c, "faq", data)
 }
 
-func (s *Server) render(w http.ResponseWriter, data viewData) {
-	w.Header().Set("Content-Type", "text/html; charset=utf-8")
-	if err := s.templates.ExecuteTemplate(w, "base", data); err != nil {
-		s.logger.Error().Err(err).Msg("render template")
-		http.Error(w, "internal server error", http.StatusInternalServerError)
-	}
-}
-
-// API routes -----------------------------------------------------------------
-
-func (s *Server) routeSecrets(w http.ResponseWriter, r *http.Request) {
-	switch r.Method {
-	case http.MethodPost:
-		s.handleCreateSecret(w, r)
-	default:
-		s.methodNotAllowed(w)
-	}
-}
-
-func (s *Server) routeSecretsWithID(w http.ResponseWriter, r *http.Request) {
-	if !strings.HasPrefix(r.URL.Path, "/api/v1/secrets/") {
-		s.notFound(w)
-		return
-	}
-	path := strings.TrimPrefix(r.URL.Path, "/api/v1/secrets/")
-	parts := strings.Split(strings.Trim(path, "/"), "/")
-	if len(parts) == 0 || parts[0] == "" {
-		s.notFound(w)
-		return
-	}
-	id := parts[0]
-
-	if len(parts) == 1 {
-		switch r.Method {
-		case http.MethodGet:
-			s.handleGetSecret(w, r, id)
-		case http.MethodDelete:
-			s.handleDeleteSecret(w, r, id)
-		default:
-			s.methodNotAllowed(w)
-		}
+func (s *Server) handleCreateSecret(c *gin.Context) {
+	if err := c.Request.ParseMultipartForm(int64(s.cfg.MaxPayloadBytes()) + 1024); err != nil && !errors.Is(err, http.ErrNotMultipart) {
+		s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("failed to parse form: %w", err))
 		return
 	}
 
-	if len(parts) == 2 && parts[1] == "payload" {
-		if r.Method == http.MethodGet {
-			s.handleDownloadSecret(w, r, id)
+	ttl := s.cfg.DefaultTTL
+	if ttlStr := strings.TrimSpace(c.PostForm("ttl_minutes")); ttlStr != "" {
+		minutes, err := strconv.Atoi(ttlStr)
+		if err != nil || minutes <= 0 {
+			s.renderCreateResult(c, http.StatusBadRequest, errors.New("TTL must be a positive number of minutes"))
 			return
 		}
-		s.methodNotAllowed(w)
+		ttl = time.Duration(minutes) * time.Minute
+	}
+
+	message := strings.TrimSpace(c.PostForm("message"))
+	fileHeader, err := c.FormFile("file")
+	var payload []byte
+	input := secret.CreateInput{TTL: ttl}
+
+	switch {
+	case err == nil:
+		payload, err = s.readUploadedFile(fileHeader)
+		if err != nil {
+			s.renderCreateResult(c, http.StatusBadRequest, err)
+			return
+		}
+		input.FileName = fileHeader.Filename
+		if ct := fileHeader.Header.Get("Content-Type"); ct != "" {
+			input.ContentType = ct
+		} else {
+			input.ContentType = http.DetectContentType(payload)
+		}
+	case errors.Is(err, http.ErrMissingFile):
+		if message == "" {
+			s.renderCreateResult(c, http.StatusBadRequest, errors.New("нужно прикрепить файл или ввести текст"))
+			return
+		}
+		payload = []byte(message)
+		if len(payload) > s.cfg.MaxPayloadBytes() {
+			s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("сообщение превышает %d байт", s.cfg.MaxPayloadBytes()))
+			return
+		}
+		input.FileName = "message.txt"
+		input.ContentType = "text/plain; charset=utf-8"
+	default:
+		s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("не удалось прочитать файл: %w", err))
+		return
+	}
+	input.Payload = payload
+	ctx := c.Request.Context()
+	rec, err := s.svc.Create(ctx, input)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("create secret")
+		s.renderCreateResult(c, http.StatusInternalServerError, errors.New("не удалось сохранить секрет"))
 		return
 	}
 
-	s.notFound(w)
+	data := createResultData{
+		Record:    rec,
+		TTL:       ttl,
+		MaxBytes:  s.cfg.MaxPayloadBytes(),
+		SharePath: fmt.Sprintf("/secret/%s", rec.ID),
+		ShareURL:  s.makeShareURL(c.Request, rec.ID),
+	}
+	c.Status(http.StatusCreated)
+	s.renderTemplate(c, "createResult", data)
 }
 
-func (s *Server) handleCreateSecret(w http.ResponseWriter, r *http.Request) {
-	req := r.Clone(r.Context())
-	req.Body = http.MaxBytesReader(w, req.Body, s.maxPayload+1<<20)
-	if err := req.ParseMultipartForm(s.maxPayload + 1<<20); err != nil {
-		s.respondErr(w, http.StatusBadRequest, "invalid form: %v", err)
+func (s *Server) handleLoadSecret(c *gin.Context) {
+	id := c.Param("id")
+	metaPath := c.Request.URL.Path
+	if id != "" {
+		metaPath = fmt.Sprintf("/secret/%s", id)
+	}
+	meta := s.buildPageMeta(c.Request, metaPath, "Safex ", "Safex — decrypt your secret message via the link")
+	if id == "" {
+		c.Status(http.StatusBadRequest)
+		s.renderTemplate(c, "retrieve", getSecretData{
+			Error: errors.New("не заполнен ID секрета"),
+			Meta:  meta,
+		})
 		return
 	}
-	file, header, err := req.FormFile("payload")
-	if err != nil {
-		s.respondErr(w, http.StatusBadRequest, "missing payload: %v", err)
+
+	data := getSecretData{
+		SecretID: id,
+		Title:    "Safex",
+		Meta:     meta,
+	}
+	c.Status(http.StatusOK)
+	s.renderTemplate(c, "retrieve", data)
+}
+
+func (s *Server) handleRevealSecret(c *gin.Context) {
+	id := strings.TrimSpace(c.PostForm("secret_id"))
+	if id == "" {
+		s.renderRevealResult(c, http.StatusBadRequest, errors.New("secret ID is required"), nil, nil)
 		return
+	}
+
+	rec, payload, err := s.svc.Load(c.Request.Context(), id)
+	if err != nil {
+		if errors.Is(err, metadata.ErrNotFound) {
+			s.renderRevealResult(c, http.StatusNotFound, errors.New("secret not found"), nil, nil)
+			return
+		}
+		if strings.Contains(err.Error(), "expired") {
+			s.renderRevealResult(c, http.StatusGone, errors.New("secret expired"), nil, nil)
+			return
+		}
+		s.logger.Error().Err(err).Str("secret_id", id).Msg("load secret")
+		s.renderRevealResult(c, http.StatusInternalServerError, errors.New("failed to load secret"), nil, nil)
+		return
+	}
+
+	s.renderRevealResult(c, http.StatusOK, nil, &rec, payload)
+}
+
+func (s *Server) renderCreateResult(c *gin.Context, status int, renderErr error) {
+	c.Status(status)
+	s.renderTemplate(c, "createResult", createResultData{Error: renderErr})
+}
+
+func (s *Server) renderRevealResult(c *gin.Context, status int, renderErr error, rec *metadata.MetadataRecord, payload []byte) {
+	c.Status(status)
+	data := revealResultData{
+		Error: renderErr,
+	}
+	if rec != nil {
+		data.Record = rec
+	}
+	if len(payload) > 0 {
+		data.PayloadBase64 = base64.StdEncoding.EncodeToString(payload)
+		if rec != nil && strings.HasPrefix(rec.ContentType, "text/") && utf8.Valid(payload) {
+			data.PayloadText = string(payload)
+			data.IsText = true
+		}
+	}
+	s.renderTemplate(c, "revealResult", data)
+}
+
+func (s *Server) readUploadedFile(fileHeader *multipart.FileHeader) ([]byte, error) {
+	file, err := fileHeader.Open()
+	if err != nil {
+		return nil, fmt.Errorf("не удалось открыть файл: %w", err)
 	}
 	defer file.Close()
-	payload, err := readAll(file, s.maxPayload)
+
+	limit := int64(s.cfg.MaxPayloadBytes())
+	payload, err := io.ReadAll(io.LimitReader(file, limit+1))
 	if err != nil {
-		s.respondErr(w, http.StatusBadRequest, "%s", err.Error())
-		return
+		return nil, fmt.Errorf("не удалось прочитать файл: %w", err)
 	}
-
-	filename := req.FormValue("filename")
-	if filename == "" && header != nil {
-		filename = header.Filename
+	if int64(len(payload)) > limit {
+		return nil, fmt.Errorf("размер файла превышает %d байт", limit)
 	}
-	contentType := req.FormValue("contentType")
-	if contentType == "" && header != nil {
-		contentType = header.Header.Get("Content-Type")
+	if len(payload) == 0 {
+		return nil, errors.New("файл пустой")
 	}
-	ttlSeconds := parseInt64(req.FormValue("ttlSeconds"), int64(s.defaultTTL.Seconds()))
-	if ttlSeconds <= 0 {
-		ttlSeconds = int64(s.defaultTTL.Seconds())
-	}
-	oneTime := req.FormValue("oneTime") == "true"
-
-	record, err := s.service.Create(r.Context(), secret.CreateInput{
-		FileName:    filename,
-		ContentType: contentType,
-		Payload:     payload,
-		TTL:         time.Duration(ttlSeconds) * time.Second,
-		OneTime:     oneTime,
-	})
-	if err != nil {
-		s.respondErr(w, http.StatusBadRequest, "%s", err.Error())
-		return
-	}
-
-	s.respondJSON(w, http.StatusCreated, map[string]any{
-		"id":        record.ID,
-		"expiresAt": record.ExpiresAt,
-		"oneTime":   record.OneTime,
-	})
+	return payload, nil
 }
 
-func (s *Server) handleGetSecret(w http.ResponseWriter, r *http.Request, id string) {
-	rec, err := s.service.Metadata(r.Context(), id)
-	if err != nil {
-		s.respondFromError(w, err)
-		return
-	}
-	s.respondJSON(w, http.StatusOK, map[string]any{
-		"id":          rec.ID,
-		"fileName":    rec.FileName,
-		"contentType": rec.ContentType,
-		"size":        rec.Size,
-		"expiresAt":   rec.ExpiresAt,
-		"oneTime":     rec.OneTime,
-	})
-}
-
-func (s *Server) handleDownloadSecret(w http.ResponseWriter, r *http.Request, id string) {
-	rec, payload, err := s.service.Fetch(r.Context(), id)
-	if err != nil {
-		s.respondFromError(w, err)
-		return
-	}
-	contentType := "application/octet-stream"
-	if rec.FileName != "" {
-		w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", rec.FileName))
-	}
-	if rec.ContentType != "" {
-		contentType = rec.ContentType
-	}
-	w.Header().Set("Content-Type", contentType)
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write(payload)
-}
-
-func (s *Server) handleDeleteSecret(w http.ResponseWriter, r *http.Request, id string) {
-	if err := s.service.Delete(r.Context(), id); err != nil {
-		s.respondFromError(w, err)
-		return
-	}
-	w.WriteHeader(http.StatusNoContent)
-}
-
-func (s *Server) respondFromError(w http.ResponseWriter, err error) {
-	switch {
-	case errors.Is(err, metadata.ErrNotFound):
-		s.respondErr(w, http.StatusNotFound, "secret not found")
-	case errors.Is(err, metadata.ErrExpired):
-		s.respondErr(w, http.StatusGone, "secret expired")
-	default:
-		s.logger.Error().Err(err).Msg("secret service error")
-		s.respondErr(w, http.StatusInternalServerError, "%s", err.Error())
+func (s *Server) renderTemplate(c *gin.Context, name string, data any) {
+	c.Header("Content-Type", "text/html; charset=utf-8")
+	if err := s.templates.ExecuteTemplate(c.Writer, name, data); err != nil {
+		s.logger.Error().Err(err).Str("template", name).Msg("render template")
+		c.AbortWithStatus(http.StatusInternalServerError)
 	}
 }
 
-func (s *Server) respondJSON(w http.ResponseWriter, status int, payload any) {
-	w.Header().Set("Content-Type", "application/json")
-	w.WriteHeader(status)
-	_ = json.NewEncoder(w).Encode(payload)
+type homePageData struct {
+	DefaultTTLMinutes  int
+	MaxPayloadMB       int
+	RateLimitPerMinute int
+	Meta               pageMeta
 }
 
-func (s *Server) respondErr(w http.ResponseWriter, status int, format string, args ...any) {
-	s.respondJSON(w, status, map[string]string{"error": fmt.Sprintf(format, args...)})
+type faqPageData struct {
+	Meta pageMeta
 }
 
-func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	_, _ = w.Write([]byte("ok"))
+type createResultData struct {
+	Error     error
+	Record    metadata.MetadataRecord
+	TTL       time.Duration
+	MaxBytes  int
+	SharePath string
+	ShareURL  string
 }
 
-func (s *Server) methodNotAllowed(w http.ResponseWriter) {
-	http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+type revealResultData struct {
+	Error         error
+	Record        *metadata.MetadataRecord
+	PayloadBase64 string
+	PayloadText   string
+	IsText        bool
 }
 
-func (s *Server) notFound(w http.ResponseWriter) {
-	http.Error(w, "not found", http.StatusNotFound)
+type getSecretData struct {
+	Title    string
+	SecretID string
+	Error    error
+	Meta     pageMeta
 }
 
-// Helpers --------------------------------------------------------------------
+func (s *Server) makeShareURL(r *http.Request, id string) string {
+	return s.makeAbsoluteURL(r, fmt.Sprintf("/secret/%s", id))
+}
 
-func readAll(file multipart.File, limit int64) ([]byte, error) {
-	var buf bytes.Buffer
-	n, err := io.CopyN(&buf, file, limit+1)
-	if err != nil && !errors.Is(err, io.EOF) && !errors.Is(err, io.ErrUnexpectedEOF) {
-		return nil, err
+type pageMeta struct {
+	Canonical     string
+	OGTitle       string
+	OGDescription string
+	OGType        string
+	OGImage       string
+}
+
+func (s *Server) buildPageMeta(r *http.Request, path, title, description string) pageMeta {
+	if path == "" && r.URL != nil {
+		path = r.URL.Path
 	}
-	if n > limit {
-		return nil, fmt.Errorf("payload larger than %d bytes", limit)
+	if path == "" {
+		path = "/"
 	}
-	return buf.Bytes(), nil
+	return pageMeta{
+		Canonical:     s.makeAbsoluteURL(r, path),
+		OGTitle:       title,
+		OGDescription: description,
+		OGType:        "website",
+	}
 }
 
-func parseInt64(val string, def int64) int64 {
-	if val == "" {
-		return def
+func (s *Server) makeAbsoluteURL(r *http.Request, path string) string {
+	if strings.HasPrefix(path, "http://") || strings.HasPrefix(path, "https://") {
+		return path
 	}
-	v, err := strconv.ParseInt(val, 10, 64)
-	if err != nil {
-		return def
+	if !strings.HasPrefix(path, "/") {
+		path = "/" + path
 	}
-	return v
+
+	scheme := "https"
+	if proto := r.Header.Get("X-Forwarded-Proto"); proto != "" {
+		parts := strings.Split(proto, ",")
+		s := strings.TrimSpace(parts[0])
+		if s != "" {
+			scheme = s
+		}
+	} else if r.TLS == nil {
+		scheme = "http"
+	}
+
+	host := r.Header.Get("X-Forwarded-Host")
+	if host != "" {
+		parts := strings.Split(host, ",")
+		host = strings.TrimSpace(parts[0])
+	}
+	if host == "" {
+		host = r.Host
+	}
+	if host == "" {
+		addr := s.cfg.HTTPAddr
+		if strings.HasPrefix(addr, ":") {
+			host = "localhost" + addr
+		} else {
+			host = addr
+		}
+	}
+
+	return fmt.Sprintf("%s://%s%s", scheme, host, path)
 }

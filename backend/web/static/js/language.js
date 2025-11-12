@@ -8,7 +8,6 @@
         kicker: "Safe secret exchange",
       },
       nav: {
-        overview: "Overview",
         source: "Source code",
         faq: "FAQ",
       },
@@ -83,13 +82,17 @@
           download: "Download",
         },
       },
+      limits: {
+        size: " — Max size:",
+        rate: " — Rate limit:",
+        "time-dimension": "per minute",
+      },
     },
     [LANG_RU]: {
       hero: {
         kicker: "Безопасный обмен секретами",
       },
       nav: {
-        overview: "Описание",
         source: "Исходный код",
         faq: "FAQ",
       },
@@ -161,6 +164,11 @@
           copy: "Скопировать",
           download: "Скачать",
         },
+      },
+      limits: {
+        size: " — Максимальный размер:",
+        rate: " — Лимит запросов:",
+        "time-dimension": "в минуту",
       },
     },
   };

@@ -131,7 +131,7 @@ func TestServiceLoadExpiredSecret(t *testing.T) {
 	}
 
 	_, _, err := service.Load(context.Background(), id)
-	if err == nil || err.Error() != "secret expired" {
+	if err == nil || !errors.Is(err, metadata.ErrExpired) {
 		t.Fatalf("expected expiration error, got %v", err)
 	}
 	if len(metaStore.deleteCalls) != 1 || metaStore.deleteCalls[0] != id {
