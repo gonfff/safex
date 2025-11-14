@@ -1,8 +1,7 @@
 module.exports = {
-  content: ["../backend/web/templates/**/*.gohtml"],
-  plugins: [require("daisyui")],
-  daisyui: {
-    themes: ["winter", "dim"],
-    darkTheme: "dim",
-  },
+  content: [
+    "../app/web/templates/**/*.gohtml",
+    "../app/web/static/js/**/*.js",
+    "../app/web/static/**/*.html",
+  ],
 };

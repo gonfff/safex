@@ -1,0 +1,4 @@
+@import "tailwindcss";
+@plugin "daisyui" {
+   themes:  themes: winter --default, dim --prefersdark;
+ }@config "../tailwind.config.cjs";
