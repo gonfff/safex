@@ -85,8 +85,7 @@
                         <p class="text-base text-base-content/70" data-i18n="retrieve.form.subtitle">Введите PIN, чтобы
                             расшифровать секрет.</p>
                     </header>
-                    <form class="space-y-4" id="unlock-form" hx-post="/secrets/reveal" hx-target="#reveal-result"
-                        hx-swap="innerHTML" hx-indicator="#reveal-indicator" method="post">
+                    <form class="space-y-4" id="unlock-form" method="post">
                         <input type="hidden" name="secret_id" value="{{.SecretID}}" />
                         <div class="space-y-2">
                             <label class="label" for="unlock-pin">
@@ -100,7 +99,7 @@
                             <button type="submit" class="btn btn-primary w-full" data-i18n="retrieve.form.cta">Получить
                                 сообщение</button>
                             <span id="reveal-indicator"
-                                class="loading loading-spinner loading-sm text-primary htmx-indicator"></span>
+                                class="loading loading-spinner loading-sm text-primary hidden"></span>
                         </div>
                     </form>
                 </div>
@@ -117,7 +116,7 @@
     <script src="/static/vendor/htmx.min.js"></script>
     <script src="/static/js/theme.js"></script>
     <script src="/static/js/language.js"></script>
-    <script src="/static/js/retrieve.js"></script>
+    <script type="module" src="/static/js/retrieve.js"></script>
 </body>
 
 </html>

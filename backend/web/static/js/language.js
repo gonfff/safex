@@ -2,7 +2,7 @@
   const LANG_RU = "ru";
   const LANG_EN = "en";
   const STORAGE_KEY = "safex-language";
-  const translations = {
+const translations = {
     [LANG_EN]: {
       hero: {
         kicker: "Safe secret exchange",
@@ -91,8 +91,20 @@
             "The payload has been destroyed on the server. Save a copy if you still need it.",
           textLabel: "Message text",
           fileLabel: "Encrypted file",
+          sizeLabel: "Size",
           copy: "Copy",
           download: "Download",
+          sizeUnits: {
+            b: "B",
+            kb: "KB",
+            mb: "MB",
+            gb: "GB",
+            tb: "TB",
+            pb: "PB",
+          },
+        },
+        errors: {
+          invalidPin: "File deleted or PIN is wrong",
         },
       },
       limits: {
@@ -187,8 +199,20 @@
           subtitle: "Сообщение удалено с сервера, сохраните его, если нужно.",
           textLabel: "Текст сообщения",
           fileLabel: "Зашифрованный файл",
+          sizeLabel: "Размер",
           copy: "Скопировать",
           download: "Скачать",
+          sizeUnits: {
+            b: "Б",
+            kb: "КБ",
+            mb: "МБ",
+            gb: "ГБ",
+            tb: "ТБ",
+            pb: "ПБ",
+          },
+        },
+        errors: {
+          invalidPin: "Файл удален или неверный пин-код",
         },
       },
       limits: {
@@ -196,10 +220,37 @@
         rate: " — Лимит запросов:",
         "time-dimension": "в минуту",
       },
-    },
-  };
+  },
+};
 
-  const langButtons = document.querySelectorAll("[data-lang]");
+const SIZE_UNIT_KEYS = ["b", "kb", "mb", "gb", "tb", "pb"];
+
+function getSizeUnits(lang) {
+  const fallback = translations[LANG_EN]?.retrieve?.result?.sizeUnits || {};
+  return translations[lang]?.retrieve?.result?.sizeUnits || fallback;
+}
+
+function formatLocalizedSize(bytes, lang) {
+  if (!Number.isFinite(bytes) || bytes < 0) {
+    return "";
+  }
+  const units = getSizeUnits(lang);
+  if (bytes < 1024) {
+    const unit = units.b || "B";
+    return `${bytes} ${unit}`;
+  }
+  let value = bytes;
+  let unitIndex = 0;
+  while (value >= 1024 && unitIndex < SIZE_UNIT_KEYS.length - 1) {
+    value /= 1024;
+    unitIndex += 1;
+  }
+  const unitKey = SIZE_UNIT_KEYS[unitIndex] || "pb";
+  const label = units[unitKey] || units.pb || "";
+  return `${value.toFixed(1)} ${label}`.trim();
+}
+
+const langButtons = document.querySelectorAll("[data-lang]");
 
   function resolveTranslation(dict, path) {
     return path
@@ -235,6 +286,12 @@
       const value = resolveTranslation(activeDictionary, key);
       if (typeof value === "string") {
         node.setAttribute("placeholder", value);
+      }
+    });
+    document.querySelectorAll("[data-i18n-size]").forEach((node) => {
+      const bytes = Number(node.dataset.bytes);
+      if (Number.isFinite(bytes)) {
+        node.textContent = formatLocalizedSize(bytes, languageKey);
       }
     });
     document.documentElement.lang = languageKey === LANG_RU ? "ru" : "en";

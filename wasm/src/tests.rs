@@ -1,4 +1,4 @@
-use super::*;
+use crate::{common::Suite, wasm::*};
 use opaque_ke::{
     CredentialFinalization, CredentialRequest, RegistrationRequest, RegistrationUpload,
     ServerLogin, ServerLoginStartParameters, ServerRegistration, ServerSetup,
@@ -10,9 +10,7 @@ fn assert_err_contains<T>(result: Result<T, JsValue>, needle: &str) {
         Ok(_) => panic!("expected Err"),
         Err(err) => err,
     };
-    let msg = err
-        .as_string()
-        .unwrap_or_else(|| format!("{err:?}"));
+    let msg = err.as_string().unwrap_or_else(|| format!("{err:?}"));
     assert!(
         msg.contains(needle),
         "expected error containing `{needle}`, got `{msg}`"
@@ -88,10 +86,7 @@ fn finish_login_rejects_unknown_handle() {
     let pin = "654321";
     let login_start = start_login(pin).expect("start login");
     let bad_handle = login_start.handle().wrapping_add(1);
-    assert_err_contains(
-        finish_login(bad_handle, pin, &[]),
-        "unknown login handle",
-    );
+    assert_err_contains(finish_login(bad_handle, pin, &[]), "unknown login handle");
     let _ = finish_login(login_start.handle(), pin, &[]);
 }
 

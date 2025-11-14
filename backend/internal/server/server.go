@@ -15,9 +15,11 @@ import (
 	"unicode/utf8"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"github.com/rs/zerolog"
 
 	"github.com/gonfff/safex/backend/internal/config"
+	"github.com/gonfff/safex/backend/internal/opaqueauth"
 	"github.com/gonfff/safex/backend/internal/secret"
 	"github.com/gonfff/safex/backend/internal/storage/metadata"
 	"github.com/gonfff/safex/backend/web"
@@ -27,16 +29,17 @@ import (
 type Server struct {
 	cfg       config.Config
 	svc       *secret.Service
+	opaque    *opaqueauth.Manager
 	logger    zerolog.Logger
 	engine    *gin.Engine
 	templates *template.Template
 	httpSrv   *http.Server
 }
 
-var errInvalidPinOrMissing = errors.New("Неверный PIN-код или файл уже удален")
+var errInvalidPinOrMissing = errors.New("Файл удален или неверный пин-код")
 
 // New wires up a Gin server instance with templates, static assets, and middleware.
-func New(cfg config.Config, svc *secret.Service, logger zerolog.Logger) (*Server, error) {
+func New(cfg config.Config, svc *secret.Service, opaqueMgr *opaqueauth.Manager, logger zerolog.Logger) (*Server, error) {
 	tpl, err := web.Templates()
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
@@ -66,6 +69,7 @@ func New(cfg config.Config, svc *secret.Service, logger zerolog.Logger) (*Server
 	s := &Server{
 		cfg:       cfg,
 		svc:       svc,
+		opaque:    opaqueMgr,
 		logger:    logger,
 		engine:    engine,
 		templates: tpl,
@@ -106,6 +110,8 @@ func (s *Server) registerRoutes() {
 	s.engine.GET("/healthz", s.handleHealth)
 	s.engine.GET("/", s.handleHome)
 	s.engine.GET("/faq", s.handleFAQ)
+	s.engine.POST("/opaque/register/start", s.handleOpaqueRegisterStart)
+	s.engine.POST("/opaque/login/start", s.handleOpaqueLoginStart)
 	s.engine.POST("/secrets", s.handleCreateSecret)
 	s.engine.GET("/secret/:id", s.handleLoadSecret)
 	s.engine.GET("/secrets/:id", s.handleLoadSecret)
@@ -121,6 +127,7 @@ func (s *Server) handleHome(c *gin.Context) {
 	data := homePageData{
 		DefaultTTLMinutes:  int(s.cfg.DefaultTTL.Minutes()),
 		MaxPayloadMB:       s.cfg.MaxPayloadMB,
+		MaxPayloadBytes:    s.cfg.MaxPayloadBytes(),
 		RateLimitPerMinute: s.cfg.RequestsPerMinute,
 		Meta:               meta,
 	}
@@ -135,6 +142,104 @@ func (s *Server) handleFAQ(c *gin.Context) {
 	}
 	c.Status(http.StatusOK)
 	s.renderTemplate(c, "faq", data)
+}
+
+type opaqueRegisterStartRequest struct {
+	Request string `json:"request"`
+}
+
+type opaqueRegisterStartResponse struct {
+	SecretID string `json:"secretId"`
+	Response string `json:"response"`
+}
+
+func (s *Server) handleOpaqueRegisterStart(c *gin.Context) {
+	if s.opaque == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "opaque manager not configured"})
+		return
+	}
+	var req opaqueRegisterStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+	payload, err := decodeBase64Field("request", req.Request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	secretID := uuid.New().String()
+	response, err := s.opaque.RegistrationResponse(secretID, payload)
+	if err != nil {
+		s.logger.Error().Err(err).Msg("opaque registration response")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "opaque registration failed"})
+		return
+	}
+	c.JSON(http.StatusOK, opaqueRegisterStartResponse{
+		SecretID: secretID,
+		Response: base64.StdEncoding.EncodeToString(response),
+	})
+}
+
+type opaqueLoginStartRequest struct {
+	SecretID string `json:"secretId"`
+	Request  string `json:"request"`
+}
+
+type opaqueLoginStartResponse struct {
+	SessionID string `json:"sessionId"`
+	Response  string `json:"response"`
+}
+
+func (s *Server) handleOpaqueLoginStart(c *gin.Context) {
+	if s.opaque == nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "opaque manager not configured"})
+		return
+	}
+	var req opaqueLoginStartRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		return
+	}
+	secretID := strings.TrimSpace(req.SecretID)
+	if secretID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "secretId is required"})
+		return
+	}
+	payload, err := decodeBase64Field("request", req.Request)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	rec, err := s.svc.Get(c.Request.Context(), secretID)
+	if err != nil {
+		if errors.Is(err, metadata.ErrNotFound) {
+			c.JSON(http.StatusNotFound, gin.H{"error": errInvalidPinOrMissing.Error()})
+			return
+		}
+		if errors.Is(err, metadata.ErrExpired) {
+			c.JSON(http.StatusGone, gin.H{"error": "secret expired"})
+			return
+		}
+		s.logger.Error().Err(err).Str("secret_id", secretID).Msg("load metadata for opaque")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load secret"})
+		return
+	}
+	if len(rec.OpaqueRecord) == 0 {
+		s.logger.Error().Str("secret_id", secretID).Msg("missing opaque record")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "opaque record missing"})
+		return
+	}
+	sessionID, response, err := s.opaque.LoginStart(secretID, rec.OpaqueRecord, payload)
+	if err != nil {
+		s.logger.Error().Err(err).Str("secret_id", secretID).Msg("opaque login start")
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "opaque login failed"})
+		return
+	}
+	c.JSON(http.StatusOK, opaqueLoginStartResponse{
+		SessionID: sessionID,
+		Response:  base64.StdEncoding.EncodeToString(response),
+	})
 }
 
 func (s *Server) handleCreateSecret(c *gin.Context) {
@@ -159,6 +264,24 @@ func (s *Server) handleCreateSecret(c *gin.Context) {
 	var payload []byte
 	input := secret.CreateInput{TTL: ttl}
 	usedPlainText := false
+
+	secretID := strings.TrimSpace(c.PostForm("secret_id"))
+	if secretID == "" {
+		s.renderCreateResult(c, http.StatusBadRequest, errors.New("secret ID is required"))
+		return
+	}
+	opaqueUploadB64 := strings.TrimSpace(c.PostForm("opaque_upload"))
+	if opaqueUploadB64 == "" {
+		s.renderCreateResult(c, http.StatusBadRequest, errors.New("opaque upload is required"))
+		return
+	}
+	opaqueUpload, err := base64.StdEncoding.DecodeString(opaqueUploadB64)
+	if err != nil {
+		s.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("invalid opaque upload: %w", err))
+		return
+	}
+	input.ID = secretID
+	input.OpaqueRecord = opaqueUpload
 
 	switch {
 	case err == nil:
@@ -237,13 +360,39 @@ func (s *Server) handleLoadSecret(c *gin.Context) {
 }
 
 func (s *Server) handleRevealSecret(c *gin.Context) {
-	id := strings.TrimSpace(c.PostForm("secret_id"))
-	if id == "" {
-		s.renderRevealResult(c, http.StatusBadRequest, errors.New("secret ID is required"), nil, nil)
+	if s.opaque == nil {
+		s.renderRevealResult(c, http.StatusInternalServerError, errors.New("opaque manager not configured"), nil, nil)
 		return
 	}
-
-	rec, payload, err := s.svc.Load(c.Request.Context(), id)
+	sessionID := strings.TrimSpace(c.PostForm("session_id"))
+	finalizationB64 := strings.TrimSpace(c.PostForm("finalization"))
+	if sessionID == "" || finalizationB64 == "" {
+		s.renderRevealResult(c, http.StatusBadRequest, errors.New("session_id and finalization are required"), nil, nil)
+		return
+	}
+	finalization, err := base64.StdEncoding.DecodeString(finalizationB64)
+	if err != nil {
+		s.renderRevealResult(c, http.StatusBadRequest, fmt.Errorf("invalid finalization: %w", err), nil, nil)
+		return
+	}
+	secretID, err := s.opaque.LoginFinish(sessionID, finalization)
+	if err != nil {
+		switch {
+		case errors.Is(err, opaqueauth.ErrSessionNotFound):
+			s.renderRevealResult(c, http.StatusBadRequest, errInvalidPinOrMissing, nil, nil)
+		case errors.Is(err, opaqueauth.ErrSessionExpired):
+			s.renderRevealResult(c, http.StatusBadRequest, errors.New("session expired, try again"), nil, nil)
+		default:
+			s.logger.Error().Err(err).Msg("opaque login finish")
+			s.renderRevealResult(c, http.StatusBadRequest, errInvalidPinOrMissing, nil, nil)
+		}
+		return
+	}
+	if secretIDParam := strings.TrimSpace(c.PostForm("secret_id")); secretIDParam != "" && secretIDParam != secretID {
+		s.renderRevealResult(c, http.StatusBadRequest, errInvalidPinOrMissing, nil, nil)
+		return
+	}
+	rec, payload, err := s.svc.Load(c.Request.Context(), secretID)
 	if err != nil {
 		if errors.Is(err, metadata.ErrNotFound) {
 			s.renderRevealResult(c, http.StatusOK, errInvalidPinOrMissing, nil, nil)
@@ -253,11 +402,13 @@ func (s *Server) handleRevealSecret(c *gin.Context) {
 			s.renderRevealResult(c, http.StatusGone, errors.New("secret expired"), nil, nil)
 			return
 		}
-		s.logger.Error().Err(err).Str("secret_id", id).Msg("load secret")
+		s.logger.Error().Err(err).Str("secret_id", secretID).Msg("load secret")
 		s.renderRevealResult(c, http.StatusInternalServerError, errors.New("failed to load secret"), nil, nil)
 		return
 	}
-
+	if err := s.svc.Delete(c.Request.Context(), secretID); err != nil {
+		s.logger.Error().Err(err).Str("secret_id", secretID).Msg("delete secret after reveal")
+	}
 	s.renderRevealResult(c, http.StatusOK, nil, &rec, payload)
 }
 
@@ -270,6 +421,9 @@ func (s *Server) renderRevealResult(c *gin.Context, status int, renderErr error,
 	c.Status(status)
 	data := revealResultData{
 		Error: renderErr,
+	}
+	if renderErr != nil && errors.Is(renderErr, errInvalidPinOrMissing) {
+		data.InvalidPin = true
 	}
 	if rec != nil {
 		data.Record = rec
@@ -319,6 +473,7 @@ func (s *Server) renderTemplate(c *gin.Context, name string, data any) {
 type homePageData struct {
 	DefaultTTLMinutes  int
 	MaxPayloadMB       int
+	MaxPayloadBytes    int
 	RateLimitPerMinute int
 	Meta               pageMeta
 }
@@ -342,6 +497,7 @@ type revealResultData struct {
 	PayloadBase64 string
 	PayloadText   string
 	IsText        bool
+	InvalidPin    bool
 }
 
 type getSecretData struct {
@@ -428,4 +584,15 @@ func normalizePayloadType(raw string, usedPlainText bool) metadata.PayloadType {
 		return metadata.PayloadTypeText
 	}
 	return metadata.PayloadTypeFile
+}
+
+func decodeBase64Field(name, value string) ([]byte, error) {
+	if strings.TrimSpace(value) == "" {
+		return nil, fmt.Errorf("%s is required", name)
+	}
+	data, err := base64.StdEncoding.DecodeString(value)
+	if err != nil {
+		return nil, fmt.Errorf("invalid %s: %w", name, err)
+	}
+	return data, nil
 }

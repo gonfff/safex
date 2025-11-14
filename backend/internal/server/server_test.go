@@ -2,7 +2,9 @@ package server
 
 import (
 	"bytes"
+	"crypto/rand"
 	"encoding/base64"
+	"encoding/json"
 	"io"
 	"mime/multipart"
 	"net/http"
@@ -17,6 +19,7 @@ import (
 	"github.com/rs/zerolog"
 
 	"github.com/gonfff/safex/backend/internal/config"
+	"github.com/gonfff/safex/backend/internal/opaqueauth"
 	"github.com/gonfff/safex/backend/internal/secret"
 	"github.com/gonfff/safex/backend/internal/storage/blob"
 	"github.com/gonfff/safex/backend/internal/storage/metadata"
@@ -43,7 +46,38 @@ func TestCreateAndRevealSecretFlow(t *testing.T) {
 	cfg.MaxPayloadMB = 1
 	srv := newTestServer(t, cfg)
 
+	testClient := opaqueauth.NewClient()
 	payload := []byte("secret payload")
+	password := "123456"
+
+	regHandle, regMessage, err := testClient.StartRegistration(password)
+	if err != nil {
+		t.Fatalf("start registration: %v", err)
+	}
+	regReq := httptest.NewRequest(http.MethodPost, "/opaque/register/start", bytes.NewReader(mustJSON(map[string]string{
+		"request": base64.StdEncoding.EncodeToString(regMessage),
+	})))
+	regReq.Header.Set("Content-Type", "application/json")
+
+	regRec := httptest.NewRecorder()
+	srv.engine.ServeHTTP(regRec, regReq)
+	if regRec.Code != http.StatusOK {
+		t.Fatalf("register start failed: %d %s", regRec.Code, regRec.Body.String())
+	}
+
+	var regResp opaqueRegisterStartResponse
+	if err := json.Unmarshal(regRec.Body.Bytes(), &regResp); err != nil {
+		t.Fatalf("decode register response: %v", err)
+	}
+	respBytes, err := base64.StdEncoding.DecodeString(regResp.Response)
+	if err != nil {
+		t.Fatalf("decode server register message: %v", err)
+	}
+	upload, _, err := testClient.FinishRegistration(regHandle, password, respBytes)
+	if err != nil {
+		t.Fatalf("finish registration: %v", err)
+	}
+	uploadB64 := base64.StdEncoding.EncodeToString(upload)
 
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
@@ -54,11 +88,14 @@ func TestCreateAndRevealSecretFlow(t *testing.T) {
 	if _, err := part.Write(payload); err != nil {
 		t.Fatalf("write payload: %v", err)
 	}
-	if err := writer.WriteField("pin", "1234"); err != nil {
-		t.Fatalf("write pin: %v", err)
-	}
 	if err := writer.WriteField("ttl_minutes", "5"); err != nil {
 		t.Fatalf("write ttl: %v", err)
+	}
+	if err := writer.WriteField("secret_id", regResp.SecretID); err != nil {
+		t.Fatalf("write secret id: %v", err)
+	}
+	if err := writer.WriteField("opaque_upload", uploadB64); err != nil {
+		t.Fatalf("write opaque upload: %v", err)
 	}
 	if err := writer.Close(); err != nil {
 		t.Fatalf("close writer: %v", err)
@@ -80,9 +117,39 @@ func TestCreateAndRevealSecretFlow(t *testing.T) {
 		t.Fatalf("secret id not found in response %q", rec.Body.String())
 	}
 
+	loginHandle, loginMessage, err := testClient.StartLogin(password)
+	if err != nil {
+		t.Fatalf("start login: %v", err)
+	}
+	loginReq := httptest.NewRequest(http.MethodPost, "/opaque/login/start", bytes.NewReader(mustJSON(map[string]string{
+		"secretId": id,
+		"request":  base64.StdEncoding.EncodeToString(loginMessage),
+	})))
+	loginReq.Header.Set("Content-Type", "application/json")
+
+	loginRec := httptest.NewRecorder()
+	srv.engine.ServeHTTP(loginRec, loginReq)
+	if loginRec.Code != http.StatusOK {
+		t.Fatalf("login start failed: %d %s", loginRec.Code, loginRec.Body.String())
+	}
+
+	var loginResp opaqueLoginStartResponse
+	if err := json.Unmarshal(loginRec.Body.Bytes(), &loginResp); err != nil {
+		t.Fatalf("decode login response: %v", err)
+	}
+	ke2Bytes, err := base64.StdEncoding.DecodeString(loginResp.Response)
+	if err != nil {
+		t.Fatalf("decode login response payload: %v", err)
+	}
+	ke3, _, _, err := testClient.FinishLogin(loginHandle, password, ke2Bytes)
+	if err != nil {
+		t.Fatalf("finish login: %v", err)
+	}
+
 	form := url.Values{}
 	form.Set("secret_id", id)
-	form.Set("pin", "1234")
+	form.Set("session_id", loginResp.SessionID)
+	form.Set("finalization", base64.StdEncoding.EncodeToString(ke3))
 
 	revealReq := httptest.NewRequest(http.MethodPost, "/secrets/reveal", strings.NewReader(form.Encode()))
 	revealReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -106,7 +173,8 @@ func TestRevealSecretUnknownIDReturnsGenericError(t *testing.T) {
 
 	form := url.Values{}
 	form.Set("secret_id", "missing-id")
-	form.Set("pin", "123456")
+	form.Set("session_id", "missing-session")
+	form.Set("finalization", base64.StdEncoding.EncodeToString([]byte("garbage")))
 
 	req := httptest.NewRequest(http.MethodPost, "/secrets/reveal", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
@@ -116,8 +184,8 @@ func TestRevealSecretUnknownIDReturnsGenericError(t *testing.T) {
 	srv.engine.ServeHTTP(rec, req)
 
 	body := rec.Body.String()
-	if rec.Code != http.StatusOK {
-		t.Fatalf("expected status 200, got %d body=%s", rec.Code, body)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("expected status 400, got %d body=%s", rec.Code, body)
 	}
 	if !strings.Contains(body, errInvalidPinOrMissing.Error()) {
 		t.Fatalf("expected generic error message, got %q", body)
@@ -162,10 +230,17 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 	if cfg.DefaultTTL == 0 {
 		cfg.DefaultTTL = time.Minute
 	}
+	if cfg.OpaqueSessionTTL == 0 {
+		cfg.OpaqueSessionTTL = time.Minute
+	}
 
 	logger := zerolog.New(io.Discard)
 	svc := secret.NewService(blobStore, metaStore, logger)
-	srv, err := New(cfg, svc, logger)
+	opaqueMgr, err := opaqueauth.NewManager(cfg)
+	if err != nil {
+		t.Fatalf("init opaque manager: %v", err)
+	}
+	srv, err := New(cfg, svc, opaqueMgr, logger)
 	if err != nil {
 		t.Fatalf("init server: %v", err)
 	}
@@ -173,12 +248,20 @@ func newTestServer(t *testing.T, cfg config.Config) *Server {
 }
 
 func defaultTestConfig() config.Config {
+	privateKey := make([]byte, 32)
+	seed := make([]byte, 64)
+	rand.Read(privateKey)
+	rand.Read(seed)
 	return config.Config{
 		HTTPAddr:          ":0",
 		MaxPayloadMB:      5,
 		RequestsPerMinute: 10,
 		DefaultTTL:        time.Minute,
 		Environment:       "test",
+		OpaqueServerID:    "",
+		OpaquePrivateKey:  base64.StdEncoding.EncodeToString(privateKey),
+		OpaqueOPRFSeed:    base64.StdEncoding.EncodeToString(seed),
+		OpaqueSessionTTL:  time.Minute,
 	}
 }
 
@@ -190,4 +273,12 @@ func extractSecretID(t *testing.T, body string) string {
 		return ""
 	}
 	return matches[1]
+}
+
+func mustJSON(v any) []byte {
+	data, err := json.Marshal(v)
+	if err != nil {
+		panic(err)
+	}
+	return data
 }

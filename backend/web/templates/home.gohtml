@@ -106,7 +106,7 @@
                                     <span class="font-medium text-base-content"
                                         data-i18n="form.fields.file.dropPrimary"></span>
                                     <span data-i18n="form.fields.file.dropSecondary"></span>
-                                    <input id="secret-file" name="file" type="file" class="hidden" />
+                                    <input id="secret-file" name="file" type="file" class="hidden" data-max-bytes="{{.MaxPayloadBytes}}" data-max-mb="{{.MaxPayloadMB}}" />
                                 </label>
                                 <div id="secret-file-info"
                                     class="hidden text-xs text-success flex items-center gap-1 flex-wrap">
@@ -135,10 +135,10 @@
                                         <span data-i18n="form.fields.expiry.label"></span>
                                     </label>
                                     <div class="flex flex-row flex-wrap gap-3">
-                                        <input id="expiry-value" name="expiry-value" type="number" min="1"
+                                        <input id="expiry-value" name="ttl" type="number" min="1"
                                             value="{{.DefaultTTLMinutes}}"
                                             class="input input-bordered flex-1 min-w-[120px] bg-base-100" />
-                                        <select id="expiry-unit" name="expiry-unit"
+                                        <select id="ttl-unit" name="ttl-unit"
                                             class="select select-bordered w-full flex-1 min-w-[120px] sm:w-40 bg-base-100">
                                             <option value="minutes" data-i18n="form.fields.expiry.minutes"></option>
                                             <option value="hours" data-i18n="form.fields.expiry.hours"></option>
@@ -149,7 +149,6 @@
                                 </div>
                             </div>
                         </div>
-                        <input type="hidden" id="ttl-minutes" name="ttl_minutes" value="{{.DefaultTTLMinutes}}" />
                         <div class="card-actions">
                             <button type="submit" class="btn btn-primary w-full" id="create-submit">
                                 <span class="inline-flex items-center justify-center gap-2" data-i18n="form.cta"></span>

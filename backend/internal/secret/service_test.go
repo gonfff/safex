@@ -19,11 +19,12 @@ func TestServiceCreateSuccess(t *testing.T) {
 	service := newTestService(blobStore, metaStore)
 
 	input := CreateInput{
-		FileName:    "data.txt",
-		ContentType: "text/plain",
-		Payload:     []byte("super secret"),
-		TTL:         30 * time.Second,
-		PayloadType: metadata.PayloadTypeText,
+		FileName:     "data.txt",
+		ContentType:  "text/plain",
+		Payload:      []byte("super secret"),
+		TTL:          30 * time.Second,
+		PayloadType:  metadata.PayloadTypeText,
+		OpaqueRecord: []byte("opaque"),
 	}
 
 	record, err := service.Create(context.Background(), input)
@@ -49,6 +50,9 @@ func TestServiceCreateSuccess(t *testing.T) {
 	if record.PayloadType != metadata.PayloadTypeText {
 		t.Fatalf("PayloadType mismatch: got %s want %s", record.PayloadType, metadata.PayloadTypeText)
 	}
+	if string(record.OpaqueRecord) != "opaque" {
+		t.Fatalf("expected opaque record to be preserved")
+	}
 	if len(blobStore.putCalls) != 1 {
 		t.Fatalf("expected blob to be stored once, got %d", len(blobStore.putCalls))
 	}
@@ -64,7 +68,7 @@ func TestServiceCreateBlobError(t *testing.T) {
 
 	blobStore.putErr = errors.New("disk full")
 
-	_, err := service.Create(context.Background(), CreateInput{TTL: time.Minute})
+	_, err := service.Create(context.Background(), CreateInput{TTL: time.Minute, OpaqueRecord: []byte("opaque")})
 	if err == nil || err.Error() != "save blob: disk full" {
 		t.Fatalf("expected blob error to be returned, got %v", err)
 	}
@@ -80,12 +84,23 @@ func TestServiceCreateMetadataError(t *testing.T) {
 
 	metaStore.createErr = errors.New("db down")
 
-	_, err := service.Create(context.Background(), CreateInput{TTL: time.Minute})
+	_, err := service.Create(context.Background(), CreateInput{TTL: time.Minute, OpaqueRecord: []byte("opaque")})
 	if err == nil || err.Error() != "store metadata: db down" {
 		t.Fatalf("expected metadata error to be returned, got %v", err)
 	}
 	if len(blobStore.deleteCalls) != 1 {
 		t.Fatalf("blob should be rolled back when metadata fails")
+	}
+}
+
+func TestServiceCreateRequiresOpaqueRecord(t *testing.T) {
+	blobStore := newMockBlobStore()
+	metaStore := newMockMetadataStore()
+	service := newTestService(blobStore, metaStore)
+
+	_, err := service.Create(context.Background(), CreateInput{TTL: time.Minute})
+	if err == nil || err.Error() != "opaque record is required" {
+		t.Fatalf("expected opaque enforcement error, got %v", err)
 	}
 }
 
@@ -112,7 +127,10 @@ func TestServiceLoadSuccess(t *testing.T) {
 	if string(gotPayload) != string(payload) {
 		t.Fatalf("payload mismatch: got %q want %q", gotPayload, payload)
 	}
-	if record != meta {
+	if record.ID != meta.ID ||
+		record.FileName != meta.FileName ||
+		record.Size != meta.Size ||
+		!record.ExpiresAt.Equal(meta.ExpiresAt) {
 		t.Fatalf("metadata mismatch: got %+v want %+v", record, meta)
 	}
 	if len(blobStore.deleteCalls) != 0 {

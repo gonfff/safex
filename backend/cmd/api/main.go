@@ -10,6 +10,7 @@ import (
 	"github.com/rs/zerolog/log"
 
 	"github.com/gonfff/safex/backend/internal/config"
+	"github.com/gonfff/safex/backend/internal/opaqueauth"
 	"github.com/gonfff/safex/backend/internal/secret"
 	"github.com/gonfff/safex/backend/internal/server"
 	"github.com/gonfff/safex/backend/internal/storage"
@@ -39,7 +40,12 @@ func main() {
 	defer closeIfPossible(blobStore)
 
 	svc := secret.NewService(blobStore, metaStore, logger)
-	srv, err := server.New(cfg, svc, logger)
+	opaqueMgr, err := opaqueauth.NewManager(cfg)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("init opaque manager")
+	}
+
+	srv, err := server.New(cfg, svc, opaqueMgr, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("init server")
 	}

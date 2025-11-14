@@ -1,6 +1,8 @@
 package config
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"fmt"
 	"os"
 	"strconv"
@@ -27,6 +29,10 @@ type Config struct {
 	DefaultTTL        time.Duration // minutes
 	MaxTTLMinutes     int
 	Environment       string
+	OpaqueServerID    string
+	OpaquePrivateKey  string
+	OpaqueOPRFSeed    string
+	OpaqueSessionTTL  time.Duration
 }
 
 // Load populates Config from environment variables, applying sane defaults.
@@ -49,6 +55,10 @@ func Load() Config {
 		RedisDB:           getIntEnv("SAFEX_REDIS_DB", 0),
 		DefaultTTL:        time.Duration(getIntEnv("SAFEX_DEFAULT_TTL_MINUTES", 15)) * time.Minute,
 		Environment:       getStrEnv("SAFEX_ENVIRONMENT", "production"),
+		OpaqueServerID:    getStrEnv("SAFEX_OPAQUE_SERVER_ID", "safex"),
+		OpaquePrivateKey:  getOpaquePrivateKey(),
+		OpaqueOPRFSeed:    getOpaqueOPRFSeed(),
+		OpaqueSessionTTL:  time.Duration(getIntEnv("SAFEX_OPAQUE_SESSION_TTL_SECONDS", 120)) * time.Second,
 	}
 	return cfg
 }
@@ -73,6 +83,23 @@ func getIntEnv(key string, defaultVal int) int {
 		}
 	}
 	return defaultVal
+}
+
+func getOpaquePrivateKey() string {
+	if val := os.Getenv("SAFEX_OPAQUE_PRIVATE_KEY"); val != "" {
+		return val
+	}
+	key := make([]byte, 32)
+	rand.Read(key)
+	return base64.StdEncoding.EncodeToString(key)
+}
+func getOpaqueOPRFSeed() string {
+	if val := os.Getenv("SAFEX_OPAQUE_OPRF_SEED"); val != "" {
+		return val
+	}
+	seed := make([]byte, 64)
+	rand.Read(seed)
+	return base64.StdEncoding.EncodeToString(seed)
 }
 
 // MustValidate ensures critical config pieces are present and compatible.
@@ -108,6 +135,16 @@ func (c Config) MustValidate() error {
 
 	if c.RequestsPerMinute <= 0 {
 		return fmt.Errorf("SAFEX_RATE_LIMIT_PER_MINUTE must be greater than zero")
+	}
+
+	if c.OpaquePrivateKey == "" {
+		return fmt.Errorf("SAFEX_OPAQUE_PRIVATE_KEY must be set")
+	}
+	if c.OpaqueOPRFSeed == "" {
+		return fmt.Errorf("SAFEX_OPAQUE_OPRF_SEED must be set")
+	}
+	if c.OpaqueSessionTTL <= 0 {
+		return fmt.Errorf("SAFEX_OPAQUE_SESSION_TTL_SECONDS must be greater than zero")
 	}
 
 	return nil
