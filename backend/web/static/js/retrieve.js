@@ -5,6 +5,18 @@
 		return;
 	}
 
+	form.addEventListener("htmx:configRequest", (event) => {
+		if (!event || event.target !== form) {
+			return;
+		}
+		const detail = event.detail || {};
+		const params = detail.parameters;
+		if (!params) {
+			return;
+		}
+		delete params.pin;
+	});
+
 	const flashButtonState = (button, stateClass) => {
 		if (!button) {
 			return;

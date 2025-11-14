@@ -101,6 +101,29 @@ func TestCreateAndRevealSecretFlow(t *testing.T) {
 	}
 }
 
+func TestRevealSecretUnknownIDReturnsGenericError(t *testing.T) {
+	srv := newTestServer(t, defaultTestConfig())
+
+	form := url.Values{}
+	form.Set("secret_id", "missing-id")
+	form.Set("pin", "123456")
+
+	req := httptest.NewRequest(http.MethodPost, "/secrets/reveal", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("HX-Request", "true")
+
+	rec := httptest.NewRecorder()
+	srv.engine.ServeHTTP(rec, req)
+
+	body := rec.Body.String()
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected status 200, got %d body=%s", rec.Code, body)
+	}
+	if !strings.Contains(body, errInvalidPinOrMissing.Error()) {
+		t.Fatalf("expected generic error message, got %q", body)
+	}
+}
+
 func TestRateLimiterBlocksExcessRequests(t *testing.T) {
 	cfg := defaultTestConfig()
 	cfg.RequestsPerMinute = 1

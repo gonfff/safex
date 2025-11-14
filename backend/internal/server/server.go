@@ -33,6 +33,8 @@ type Server struct {
 	httpSrv   *http.Server
 }
 
+var errInvalidPinOrMissing = errors.New("Неверный PIN-код или файл уже удален")
+
 // New wires up a Gin server instance with templates, static assets, and middleware.
 func New(cfg config.Config, svc *secret.Service, logger zerolog.Logger) (*Server, error) {
 	tpl, err := web.Templates()
@@ -244,10 +246,10 @@ func (s *Server) handleRevealSecret(c *gin.Context) {
 	rec, payload, err := s.svc.Load(c.Request.Context(), id)
 	if err != nil {
 		if errors.Is(err, metadata.ErrNotFound) {
-			s.renderRevealResult(c, http.StatusNotFound, errors.New("secret not found"), nil, nil)
+			s.renderRevealResult(c, http.StatusOK, errInvalidPinOrMissing, nil, nil)
 			return
 		}
-		if strings.Contains(err.Error(), "expired") {
+		if errors.Is(err, metadata.ErrExpired) {
 			s.renderRevealResult(c, http.StatusGone, errors.New("secret expired"), nil, nil)
 			return
 		}
