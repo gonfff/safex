@@ -19,8 +19,15 @@ js-sys = "0.3"
 getrandom = { version = "0.3", features = ["wasm_js"] }
 getrandom02 = { package = "getrandom", version = "0.2", features = ["js"] }
 argon2 = { version = "0.5", features = ["std"] }
-rand = { version = "0.9", features = ["std"] }
+rand = { version = "0.8", features = ["std"] }
 wasm-bindgen = "0.2"
+opaque-ke = { version = "3", default-features = false, features = [
+    "std",
+    "ristretto255-voprf",
+    "argon2",
+] }
+sha2 = { version = "0.10", default-features = false, features = ["std"] }
+hkdf = { version = "0.12", default-features = false, features = ["std"] }
 
 [dev-dependencies]
 wasm-bindgen-test = "0.3"
