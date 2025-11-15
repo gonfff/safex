@@ -1,8 +1,10 @@
+use crate::common::NONCE_LEN;
 use crate::{common::Suite, wasm::*};
 use opaque_ke::{
     CredentialFinalization, CredentialRequest, RegistrationRequest, RegistrationUpload,
     ServerLogin, ServerLoginStartParameters, ServerRegistration, ServerSetup,
 };
+use rand::rngs::OsRng;
 use wasm_bindgen_test::*;
 
 fn assert_err_contains<T>(result: Result<T, JsValue>, needle: &str) {

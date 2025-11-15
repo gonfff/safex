@@ -6,7 +6,7 @@ on:
   pull_request:
 
 jobs:
-  wasm-test:
+  rust-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -23,8 +23,8 @@ jobs:
           path: |
             ~/.cargo/registry
             ~/.cargo/git
-            wasm/target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('wasm/Cargo.lock') }}
+            rust/target
+          key: ${{ runner.os }}-cargo-${{ hashFiles('rust/Cargo.lock') }}
           restore-keys: |
             ${{ runner.os }}-cargo-
 
@@ -34,10 +34,10 @@ jobs:
           tool: wasm-pack
 
       - name: Run WASM tests
-        working-directory: wasm
+        working-directory: rust
         run: wasm-pack test --node
 
-  backend-test:
+  app-test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -45,7 +45,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version-file: backend/go.mod
+          go-version-file: app/go.mod
 
       - name: Cache Go modules
         uses: actions/cache@v4
@@ -53,10 +53,10 @@ jobs:
           path: |
             ~/go/pkg/mod
             ~/.cache/go-build
-          key: ${{ runner.os }}-go-${{ hashFiles('backend/go.sum') }}
+          key: ${{ runner.os }}-go-${{ hashFiles('app/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
 
       - name: Run backend tests
-        working-directory: backend
+        working-directory: app
         run: go test ./... -v

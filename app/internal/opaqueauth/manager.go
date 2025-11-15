@@ -2,7 +2,7 @@ package opaqueauth
 
 /*
 #cgo CFLAGS: -I${SRCDIR}/../../lib
-#cgo LDFLAGS: -L${SRCDIR}/../../lib -lsafex_wasm -ldl -lpthread
+#cgo LDFLAGS: -L${SRCDIR}/../../lib -lsafex_rust -ldl -lpthread
 #include "safex_opaque.h"
 #include <stdlib.h>
 */
