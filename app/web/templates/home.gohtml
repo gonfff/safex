@@ -12,11 +12,12 @@
     <meta property="og:url" content="{{.Canonical}}" />
     <meta property="og:title" content="{{.OGTitle}}" />
     <meta property="og:description" content="{{.OGDescription}}" />
-    {{if .OGImage}}
-    <meta property="og:image" content="{{.OGImage}}" />{{end}}
+    <meta property="og:image" content="/static/img/favicon-192x192.png" />
     {{end}}
     <title>Safex</title>
     <link rel="stylesheet" href="/static/css/output.css" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png" />
     <style>
         .htmx-indicator {
             opacity: 0;
@@ -106,7 +107,8 @@
                                     <span class="font-medium text-base-content"
                                         data-i18n="form.fields.file.dropPrimary"></span>
                                     <span data-i18n="form.fields.file.dropSecondary"></span>
-                                    <input id="secret-file" name="file" type="file" class="hidden" data-max-bytes="{{.MaxPayloadBytes}}" data-max-mb="{{.MaxPayloadMB}}" />
+                                    <input id="secret-file" name="file" type="file" class="hidden"
+                                        data-max-bytes="{{.MaxPayloadBytes}}" data-max-mb="{{.MaxPayloadMB}}" />
                                 </label>
                                 <div id="secret-file-info"
                                     class="hidden text-xs text-success flex items-center gap-1 flex-wrap">

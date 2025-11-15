@@ -39,3 +39,30 @@ func TestBoltStoreCRUD(t *testing.T) {
 		t.Fatalf("expected error after delete")
 	}
 }
+
+func TestBoltStore_GetNonexistent(t *testing.T) {
+	dbPath := t.TempDir() + "/meta.db"
+	store, err := NewBolt(dbPath)
+	if err != nil {
+		t.Fatalf("new bolt: %v", err)
+	}
+
+	ctx := context.Background()
+	_, err = store.Get(ctx, "nonexistent-id")
+	if err == nil {
+		t.Error("Expected error for nonexistent record")
+	}
+}
+
+func TestBoltStore_Close(t *testing.T) {
+	dbPath := t.TempDir() + "/meta.db"
+	store, err := NewBolt(dbPath)
+	if err != nil {
+		t.Fatalf("new bolt: %v", err)
+	}
+
+	err = store.Close()
+	if err != nil {
+		t.Errorf("Close returned error: %v", err)
+	}
+}

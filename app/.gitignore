@@ -1,4 +1,8 @@
-web/static
+web/static/css
+web/static/vendor
+web/static/wasm
 lib
 .storage
 bin
+coverage.out
+coverage.html

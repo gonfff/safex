@@ -1,0 +1,20 @@
+site_name: Safex Docs
+site_description: "Architecture and operating guide for the Safex secure secret exchange"
+site_url: https://gonfff.github.io/safex
+repo_url: https://github.com/gonfff/safex
+repo_name: safex
+docs_dir: pages
+site_dir: site
+nav:
+  - Overview: index.md
+  - Architecture: architecture.md
+  - Backend Walkthrough: backend.md
+  - Frontend & WASM: frontend_wasm.md
+theme:
+  name: material
+  language: en
+markdown_extensions:
+  - toc:
+      permalink: true
+  - admonition
+  - codehilite

@@ -1,4 +1,4 @@
-package server
+package middleware
 
 import (
 	"net/http"
@@ -10,7 +10,39 @@ import (
 	"github.com/rs/zerolog"
 )
 
-type rateLimiter struct {
+// ZerologMiddleware returns gin.HandlerFunc for request logging via zerolog
+func ZerologMiddleware(logger zerolog.Logger) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		start := time.Now()
+		path := c.Request.URL.Path
+		raw := c.Request.URL.RawQuery
+
+		c.Next()
+
+		latency := time.Since(start)
+		clientIP := c.ClientIP()
+		method := c.Request.Method
+		statusCode := c.Writer.Status()
+		bodySize := c.Writer.Size()
+
+		if raw != "" {
+			path = path + "?" + raw
+		}
+
+		logger.Info().
+			Str("method", method).
+			Str("path", path).
+			Str("ip", clientIP).
+			Int("status", statusCode).
+			Int("size", bodySize).
+			Dur("latency", latency).
+			Str("user_agent", c.Request.UserAgent()).
+			Msg("HTTP request")
+	}
+}
+
+// RateLimiter request rate limiter
+type RateLimiter struct {
 	limit  int
 	window time.Duration
 	mu     sync.Mutex
@@ -22,15 +54,16 @@ type clientWindow struct {
 	reset time.Time
 }
 
-func newRateLimiter(limit int, window time.Duration) *rateLimiter {
-	return &rateLimiter{
+// NewRateLimiter creates a new rate limiter
+func NewRateLimiter(limit int, window time.Duration) *RateLimiter {
+	return &RateLimiter{
 		limit:  limit,
 		window: window,
 		store:  make(map[string]clientWindow),
 	}
 }
 
-func (r *rateLimiter) allow(key string) (remaining int, retryAfter time.Duration, ok bool) {
+func (r *RateLimiter) allow(key string) (remaining int, retryAfter time.Duration, ok bool) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
@@ -49,7 +82,8 @@ func (r *rateLimiter) allow(key string) (remaining int, retryAfter time.Duration
 	return r.limit - entry.count, entry.reset.Sub(now), true
 }
 
-func rateLimitMiddleware(l *rateLimiter, logger zerolog.Logger) gin.HandlerFunc {
+// RateLimitMiddleware returns middleware for request rate limiting
+func RateLimitMiddleware(l *RateLimiter, logger zerolog.Logger) gin.HandlerFunc {
 	if l == nil {
 		return func(c *gin.Context) {
 			c.Next()
