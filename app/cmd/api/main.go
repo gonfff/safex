@@ -9,11 +9,13 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/rs/zerolog/log"
 
+	"github.com/gonfff/safex/app/internal/adapters"
 	"github.com/gonfff/safex/app/internal/config"
+	"github.com/gonfff/safex/app/internal/handlers"
+	"github.com/gonfff/safex/app/internal/infrastructure"
 	"github.com/gonfff/safex/app/internal/opaqueauth"
-	"github.com/gonfff/safex/app/internal/secret"
-	"github.com/gonfff/safex/app/internal/server"
 	"github.com/gonfff/safex/app/internal/storage"
+	"github.com/gonfff/safex/app/internal/usecases"
 )
 
 func main() {
@@ -28,6 +30,7 @@ func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
 
+	// Initialize storage layer
 	blobStore, err := storage.NewBlobStore(cfg)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("init blob store")
@@ -39,13 +42,38 @@ func main() {
 	defer closeIfPossible(metaStore)
 	defer closeIfPossible(blobStore)
 
-	svc := secret.NewService(blobStore, metaStore, logger)
+	// Initialize OPAQUE manager
 	opaqueMgr, err := opaqueauth.NewManager(cfg)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("init opaque manager")
 	}
 
-	srv, err := server.New(cfg, svc, opaqueMgr, logger)
+	// Create adapters (Infrastructure layer -> Domain layer)
+	secretRepo := adapters.NewSecretRepositoryAdapter(metaStore)
+	blobRepo := adapters.NewBlobRepositoryAdapter(blobStore)
+	opaqueAuthService := adapters.NewOpaqueAuthServiceAdapter(opaqueMgr)
+
+	// Create use cases (Application layer)
+	createSecretUC := usecases.NewCreateSecretUseCase(secretRepo, blobRepo, logger)
+	loadSecretUC := usecases.NewLoadSecretUseCase(secretRepo, blobRepo, logger)
+	deleteSecretUC := usecases.NewDeleteSecretUseCase(secretRepo, blobRepo, logger)
+	opaqueAuthUC := usecases.NewOpaqueAuthUseCase(opaqueAuthService, logger)
+
+	// Create handlers (Presentation layer)
+	httpHandlers, err := handlers.NewHTTPHandlers(
+		cfg,
+		createSecretUC,
+		loadSecretUC,
+		deleteSecretUC,
+		opaqueAuthUC,
+		logger,
+	)
+	if err != nil {
+		logger.Fatal().Err(err).Msg("init handlers")
+	}
+
+	// Create and start server (Infrastructure layer)
+	srv, err := infrastructure.NewServer(cfg, httpHandlers, logger)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("init server")
 	}

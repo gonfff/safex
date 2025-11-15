@@ -4,4 +4,7 @@ module.exports = {
     "../app/web/static/js/**/*.js",
     "../app/web/static/**/*.html",
   ],
+  daisyui: {
+    themes: ["winter", "dim"],
+  },
 };

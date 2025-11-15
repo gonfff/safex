@@ -1,0 +1,10 @@
+[project]
+name = "safex-docs"
+version = "0.1.0"
+description = "Safex docs"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "mkdocs>=1.5",
+    "mkdocs-material>=9.5",
+]

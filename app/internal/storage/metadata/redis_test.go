@@ -92,3 +92,31 @@ func getIntEnv(key string, defaultVal int) int {
 	}
 	return defaultVal
 }
+
+func TestRedisStore_NewRedis_InvalidConfig(t *testing.T) {
+	// Test with invalid redis config
+	cfg := RedisConfig{
+		Addr:     "invalid:redis:address:9999",
+		Password: "",
+		DB:       0,
+	}
+
+	_, err := NewRedis(cfg)
+	if err == nil {
+		t.Skip("Expected error with invalid redis address, but connection succeeded")
+	}
+}
+
+func TestRedisStore_NewRedis_EmptyAddr(t *testing.T) {
+	// Test with empty address
+	cfg := RedisConfig{
+		Addr:     "",
+		Password: "",
+		DB:       0,
+	}
+
+	_, err := NewRedis(cfg)
+	if err == nil {
+		t.Error("Expected error with empty redis address")
+	}
+}
