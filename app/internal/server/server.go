@@ -36,7 +36,7 @@ type Server struct {
 	httpSrv   *http.Server
 }
 
-var errInvalidPinOrMissing = errors.New("Файл удален или неверный пин-код")
+var errInvalidPinOrMissing = errors.New("File not found or invalid PIN")
 
 // New wires up a Gin server instance with templates, static assets, and middleware.
 func New(cfg config.Config, svc *secret.Service, opaqueMgr *opaqueauth.Manager, logger zerolog.Logger) (*Server, error) {
@@ -113,7 +113,6 @@ func (s *Server) registerRoutes() {
 	s.engine.POST("/opaque/register/start", s.handleOpaqueRegisterStart)
 	s.engine.POST("/opaque/login/start", s.handleOpaqueLoginStart)
 	s.engine.POST("/secrets", s.handleCreateSecret)
-	s.engine.GET("/secret/:id", s.handleLoadSecret)
 	s.engine.GET("/secrets/:id", s.handleLoadSecret)
 	s.engine.POST("/secrets/reveal", s.handleRevealSecret)
 }
@@ -444,7 +443,7 @@ func (s *Server) renderRevealResult(c *gin.Context, status int, renderErr error,
 func (s *Server) readUploadedFile(fileHeader *multipart.FileHeader) ([]byte, error) {
 	file, err := fileHeader.Open()
 	if err != nil {
-		return nil, fmt.Errorf("не удалось открыть файл: %w", err)
+		return nil, fmt.Errorf("failed to open file: %w", err)
 	}
 	defer file.Close()
 
