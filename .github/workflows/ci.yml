@@ -43,6 +43,31 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('rust/Cargo.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
+      - name: Build Rust library
+        working-directory: rust
+        run: cargo build --release --features server
+
+      - name: Copy Rust library
+        run: |
+          mkdir -p app/lib
+          cp rust/target/release/libsafex_rust.* app/lib/
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

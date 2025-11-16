@@ -7,7 +7,7 @@ docs_dir: pages
 site_dir: site
 nav:
   - Overview: index.md
-  - Architecture: architecture.md
+  - Why its safe: safex.md
   - Backend Walkthrough: backend.md
   - Frontend & WASM: frontend_wasm.md
 theme:
