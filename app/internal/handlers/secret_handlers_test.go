@@ -33,14 +33,14 @@ func TestHandleCreateSecret_InvalidForm(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Test с невалидным Content-Type
+	// Test invalid Content-Type
 	req := httptest.NewRequest("POST", "/create", strings.NewReader("invalid data"))
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
 
-	// Должен возвращать ошибку из-за nil use case или неправильного формата
+	// Should return an error due to nil use case or incorrect format
 	assert.True(t, w.Code >= 400)
 }
 
@@ -59,7 +59,7 @@ func TestHandleCreateSecret_MissingSecretID(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем multipart form без secret_id
+	// Create multipart form without secret_id
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("message", "test message")
@@ -90,7 +90,7 @@ func TestHandleCreateSecret_MissingOpaqueUpload(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем multipart form без opaque_upload
+	// Create multipart form without opaque_upload
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
@@ -121,7 +121,7 @@ func TestHandleCreateSecret_InvalidTTL(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем multipart form с невалидным TTL
+	// Create multipart form with invalid TTL
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
@@ -154,7 +154,7 @@ func TestHandleCreateSecret_NegativeTTL(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем multipart form с отрицательным TTL
+	// Create multipart form with negative TTL
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
@@ -187,7 +187,7 @@ func TestHandleCreateSecret_InvalidOpaqueUpload(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем multipart form с невалидным base64 opaque_upload
+	// Create multipart form with invalid base64 opaque_upload
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
@@ -219,7 +219,7 @@ func TestHandleCreateSecret_NoFileNoMessage(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем multipart form без файла и сообщения
+	// Create multipart form without file and message
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
@@ -250,7 +250,7 @@ func TestHandleCreateSecret_MessageTooLarge(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем сообщение больше лимита
+	// Create a message larger than the limit
 	largeMessage := strings.Repeat("x", cfg.MaxPayloadBytes()+1)
 
 	var b bytes.Buffer
@@ -281,13 +281,13 @@ func TestHandleLoadSecret_EmptyID(t *testing.T) {
 	router := gin.New()
 	router.GET("/secrets/:id", handlers.HandleLoadSecret)
 
-	// Test с пустым ID (параметр :id не будет установлен)
+	// Test with empty ID (the :id parameter will not be set)
 	req := httptest.NewRequest("GET", "/secrets/", nil)
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
 
-	// Обычно вернет 404 так как роут не совпадает, но проверим что обработчик работает
+	// Usually returns 404 because the route does not match, but let's check that the handler works
 	assert.True(t, w.Code >= 400)
 }
 
@@ -303,7 +303,7 @@ func TestHandleLoadSecret_ValidID(t *testing.T) {
 	router := gin.New()
 	router.GET("/secrets/:id", handlers.HandleLoadSecret)
 
-	// Test с валидным ID
+	// Test with valid ID
 	req := httptest.NewRequest("GET", "/secrets/test-secret-id", nil)
 	w := httptest.NewRecorder()
 
@@ -324,7 +324,7 @@ func TestHandleRevealSecret_MissingSessionID(t *testing.T) {
 	router := gin.New()
 	router.POST("/reveal", handlers.HandleRevealSecret)
 
-	// Test без session_id
+	// Test without session_id
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("finalization", base64.StdEncoding.EncodeToString([]byte("test")))
@@ -351,7 +351,7 @@ func TestHandleRevealSecret_MissingFinalization(t *testing.T) {
 	router := gin.New()
 	router.POST("/reveal", handlers.HandleRevealSecret)
 
-	// Test без finalization
+	// Test without finalization
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("session_id", "test-session-id")
@@ -378,7 +378,7 @@ func TestHandleRevealSecret_InvalidFinalization(t *testing.T) {
 	router := gin.New()
 	router.POST("/reveal", handlers.HandleRevealSecret)
 
-	// Test с невалидным base64 finalization
+	// Test with invalid base64 finalization
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("session_id", "test-session-id")
@@ -403,34 +403,34 @@ func TestReadUploadedFile_EmptyFile(t *testing.T) {
 	handlers, err := NewHTTPHandlers(cfg, nil, nil, nil, nil, logger)
 	assert.NoError(t, err)
 
-	// Создаем пустой файл через form
+	// Create an empty file through form
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
 	writer.WriteField("opaque_upload", base64.StdEncoding.EncodeToString([]byte("test-opaque")))
 
-	// Создаем пустой файл
+	// Create an empty file
 	part, err := writer.CreateFormFile("file", "empty.txt")
 	assert.NoError(t, err)
-	// Не записываем ничего в part - файл будет пустым
+	// Do not write anything to part - the file will be empty
 	_ = part
 	writer.Close()
 
-	// Создаем форм request
+	// Create form request
 	req := httptest.NewRequest("POST", "/create", &b)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	// Парсим форму чтобы получить файл
+	// Parse form to get the file
 	if err := req.ParseMultipartForm(32 << 20); err != nil {
 		t.Fatalf("Failed to parse form: %v", err)
 	}
 
-	// Получаем заголовок файла
+	// Get file header
 	file, header, err := req.FormFile("file")
 	assert.NoError(t, err)
 	file.Close()
 
-	// Тестируем readUploadedFile с пустым файлом
+	// Test readUploadedFile with empty file
 	_, err = handlers.readUploadedFile(header)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "file is empty")
@@ -498,17 +498,17 @@ func TestHandleCreateSecret_FileTooLarge(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем файл больше лимита (симулируем)
+	// Create a file larger than the limit (simulate)
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
 	writer.WriteField("opaque_upload", base64.StdEncoding.EncodeToString([]byte("test-opaque")))
 
-	// Создаем большой файл - но из-за ограничений теста просто создадим с корректным контентом
+	// Create a large file - but due to test limitations, we'll just create with valid content
 	part, err := writer.CreateFormFile("file", "large.txt")
 	assert.NoError(t, err)
 
-	// Записываем большой контент
+	// Write large content
 	largeContent := strings.Repeat("x", cfg.MaxPayloadBytes()+1)
 	part.Write([]byte(largeContent))
 	writer.Close()
@@ -519,7 +519,7 @@ func TestHandleCreateSecret_FileTooLarge(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	// Должен вернуть ошибку из-за размера файла или ошибку парсинга формы
+	// Should return an error due to file size or form parsing error
 	assert.True(t, w.Code >= 400)
 }
 
@@ -538,11 +538,11 @@ func TestHandleCreateSecret_ZeroTTL(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем multipart form с TTL равным 0 (невалидный)
+	// Create multipart form with TTL set to 0 (invalid)
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
-	writer.WriteField("ttl_minutes", "0") // невалидный TTL
+	writer.WriteField("ttl_minutes", "0") // invalid TTL
 	writer.WriteField("message", "test message")
 	writer.WriteField("opaque_upload", base64.StdEncoding.EncodeToString([]byte("test-opaque")))
 	writer.Close()
@@ -553,7 +553,7 @@ func TestHandleCreateSecret_ZeroTTL(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	// Должен вернуть 400 из-за неправильного TTL
+	// Should return 400 due to invalid TTL
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
@@ -567,7 +567,7 @@ func TestHandleLoadSecret_WithEmptyParam(t *testing.T) {
 	assert.NoError(t, err)
 
 	router := gin.New()
-	// Без параметра :id
+	// Without :id parameter
 	router.GET("/secrets/", handlers.HandleLoadSecret)
 
 	req := httptest.NewRequest("GET", "/secrets/", nil)
@@ -575,7 +575,7 @@ func TestHandleLoadSecret_WithEmptyParam(t *testing.T) {
 
 	router.ServeHTTP(w, req)
 
-	// Должен обработать отсутствие ID
+	// Should handle missing ID
 	assert.True(t, w.Code >= 400)
 }
 
@@ -591,10 +591,10 @@ func TestHandleRevealSecret_EmptySessionID(t *testing.T) {
 	router := gin.New()
 	router.POST("/reveal", handlers.HandleRevealSecret)
 
-	// Test с пустым session_id (только пробелы)
+	// Test with empty session_id (only spaces)
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
-	writer.WriteField("session_id", "   ") // только пробелы
+	writer.WriteField("session_id", "   ") // only spaces
 	writer.WriteField("finalization", base64.StdEncoding.EncodeToString([]byte("test")))
 	writer.Close()
 
@@ -619,11 +619,11 @@ func TestHandleRevealSecret_EmptyFinalization(t *testing.T) {
 	router := gin.New()
 	router.POST("/reveal", handlers.HandleRevealSecret)
 
-	// Test с пустым finalization (только пробелы)
+	// Test with empty finalization (only spaces)
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("session_id", "test-session-id")
-	writer.WriteField("finalization", "   ") // только пробелы
+	writer.WriteField("finalization", "   ") // only spaces
 	writer.Close()
 
 	req := httptest.NewRequest("POST", "/reveal", &b)
@@ -644,34 +644,34 @@ func TestReadUploadedFile_Success(t *testing.T) {
 	handlers, err := NewHTTPHandlers(cfg, nil, nil, nil, nil, logger)
 	assert.NoError(t, err)
 
-	// Создаем файл с контентом
+	// Create a file with content
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
 	writer.WriteField("opaque_upload", base64.StdEncoding.EncodeToString([]byte("test-opaque")))
 
-	// Создаем файл с контентом
+	// Create a file with content
 	part, err := writer.CreateFormFile("file", "test.txt")
 	assert.NoError(t, err)
 	testContent := "Hello World"
 	part.Write([]byte(testContent))
 	writer.Close()
 
-	// Создаем форм request
+	// Create form request
 	req := httptest.NewRequest("POST", "/create", &b)
 	req.Header.Set("Content-Type", writer.FormDataContentType())
 
-	// Парсим форму чтобы получить файл
+	// Parse form to get the file
 	if err := req.ParseMultipartForm(32 << 20); err != nil {
 		t.Fatalf("Failed to parse form: %v", err)
 	}
 
-	// Получаем заголовок файла
+	// Get file header
 	file, header, err := req.FormFile("file")
 	assert.NoError(t, err)
 	file.Close()
 
-	// Тестируем readUploadedFile с файлом с контентом
+	// Test readUploadedFile with a file with content
 	payload, err := handlers.readUploadedFile(header)
 	assert.NoError(t, err)
 	assert.Equal(t, testContent, string(payload))
@@ -692,13 +692,13 @@ func TestHandleCreateSecret_ParseFormError(t *testing.T) {
 	router := gin.New()
 	router.POST("/create", handlers.HandleCreateSecret)
 
-	// Создаем запрос с неправильным Content-Type
+	// Create request with incorrect Content-Type
 	req := httptest.NewRequest("POST", "/create", strings.NewReader("not multipart data"))
 	req.Header.Set("Content-Type", "text/plain")
 	w := httptest.NewRecorder()
 
 	router.ServeHTTP(w, req)
 
-	// Должен корректно обработать ошибку парсинга формы
+	// Should correctly handle form parsing error
 	assert.True(t, w.Code >= 400)
 }

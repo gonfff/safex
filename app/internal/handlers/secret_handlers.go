@@ -29,10 +29,13 @@ func (h *HTTPHandlers) HandleCreateSecret(c *gin.Context) {
 		return
 	}
 
-	// Получаем TTL из формы или используем дефолтный
+	if err := form.ValidateWithConfig(h.cfg); err != nil {
+		h.renderCreateResult(c, http.StatusBadRequest, err)
+		return
+	}
+
 	ttl := form.GetTTLDuration(h.cfg.DefaultTTL)
 
-	// Декодируем opaque upload
 	opaqueUpload, err := base64.StdEncoding.DecodeString(form.OpaqueUpload)
 	if err != nil {
 		h.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("invalid opaque upload: %w", err))

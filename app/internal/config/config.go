@@ -54,6 +54,7 @@ func Load() Config {
 		RedisPassword:     os.Getenv("SAFEX_REDIS_PASSWORD"),
 		RedisDB:           getIntEnv("SAFEX_REDIS_DB", 0),
 		DefaultTTL:        time.Duration(getIntEnv("SAFEX_DEFAULT_TTL_MINUTES", 15)) * time.Minute,
+		MaxTTLMinutes:     getIntEnv("SAFEX_MAX_TTL_MINUTES", 1440),
 		Environment:       getStrEnv("SAFEX_ENVIRONMENT", "production"),
 		OpaqueServerID:    getStrEnv("SAFEX_OPAQUE_SERVER_ID", "safex"),
 		OpaquePrivateKey:  getOpaquePrivateKey(),

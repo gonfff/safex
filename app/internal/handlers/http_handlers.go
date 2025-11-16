@@ -37,7 +37,6 @@ func NewHTTPHandlers(
 	opaqueAuthUC *usecases.OpaqueAuthUseCase,
 	logger zerolog.Logger,
 ) (*HTTPHandlers, error) {
-	// Регистрируем кастомные валидаторы
 	RegisterCustomValidators()
 
 	tpl, err := web.Templates()

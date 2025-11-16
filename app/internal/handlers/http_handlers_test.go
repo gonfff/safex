@@ -109,8 +109,6 @@ func TestHTTPHandlers_HandleFAQ(t *testing.T) {
 	}
 }
 
-// TestDecodeBase64Field убран - декодирование base64 теперь в валидаторах
-
 func TestNewHTTPHandlers_Error(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	cfg := config.Config{}
