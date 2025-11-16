@@ -43,6 +43,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('rust/Cargo.lock', 'rust/Cargo.toml', 'rust/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
+      - name: Cache compiled library
+        id: lib-cache
+        uses: actions/cache@v4
+        with:
+          path: app/lib
+          key: ${{ runner.os }}-lib-${{ hashFiles('rust/Cargo.lock', 'rust/Cargo.toml', 'rust/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-lib-
+
+      - name: Build Rust library
+        if: steps.lib-cache.outputs.cache-hit != 'true'
+        working-directory: rust
+        run: cargo build --release --features server
+
+      - name: Copy Rust library
+        if: steps.lib-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p app/lib
+          cp rust/target/release/libsafex_rust.* app/lib/
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -60,7 +96,10 @@ jobs:
 
       - name: Run backend tests
         working-directory: app
-        run: go test ./... -v
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/app/lib
+        run: |
+          go test ./... -v
 
   docker-build-and-push:
     runs-on: ubuntu-latest
