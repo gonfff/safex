@@ -65,7 +65,7 @@ func (h *HTTPHandlers) HandleHealth(c *gin.Context) {
 
 // HandleHome handles the home page
 func (h *HTTPHandlers) HandleHome(c *gin.Context) {
-	meta := h.buildPageMeta(c.Request, "", "Safex", "Safex - safe secret exchange")
+	meta := h.buildPageMeta(c.Request, "", "Safex", "Safex - safe secrets exchange")
 	data := homePageData{
 		DefaultTTLMinutes:  int(h.cfg.DefaultTTL.Minutes()),
 		MaxPayloadMB:       h.cfg.MaxPayloadMB,
@@ -79,7 +79,7 @@ func (h *HTTPHandlers) HandleHome(c *gin.Context) {
 
 // HandleFAQ handles the FAQ page
 func (h *HTTPHandlers) HandleFAQ(c *gin.Context) {
-	meta := h.buildPageMeta(c.Request, "", "Safex", "Safex - safe secret exchange")
+	meta := h.buildPageMeta(c.Request, "", "Safex", "Safex - safe secrets exchange")
 	data := faqPageData{
 		Meta: meta,
 	}

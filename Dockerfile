@@ -5,31 +5,27 @@ RUN cargo install wasm-pack
 COPY rust ./rust
 WORKDIR /src/rust
 
-# Build WASM (архитектурно независимый)
 RUN wasm-pack build --target web --out-dir dist/wasm --release --features wasm
 
-# Установка cross-compilation tools для целевой архитектуры
 ARG TARGETPLATFORM
-RUN case "$TARGETPLATFORM" in \
-    "linux/amd64") echo "x86_64-unknown-linux-gnu" > /tmp/target ;; \
-    "linux/arm64") echo "aarch64-unknown-linux-gnu" > /tmp/target ;; \
-    *) echo "Unsupported platform: $TARGETPLATFORM" && exit 1 ;; \
-    esac
-
-RUN export TARGET=$(cat /tmp/target) && \
-    rustup target add $TARGET && \
-    if [ "$TARGET" = "aarch64-unknown-linux-gnu" ]; then \
+RUN if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+    rustup target add aarch64-unknown-linux-gnu && \
     apt-get update && apt-get install -y gcc-aarch64-linux-gnu && \
-    export CC_aarch64_unknown_linux_gnu=aarch64-linux-gnu-gcc && \
-    export CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc; \
-    fi && \
-    cargo build --release --features server --target $TARGET
+    CC=aarch64-linux-gnu-gcc \
+    CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER=aarch64-linux-gnu-gcc \
+    cargo build --release --features server --target aarch64-unknown-linux-gnu; \
+    else \
+    cargo build --release --features server; \
+    fi
 
-# Копируем собранную библиотеку в правильное место
-RUN export TARGET=$(cat /tmp/target) && \
-    mkdir -p /output && \
-    cp target/$TARGET/release/libsafex_rust.so /output/ && \
-    cp target/$TARGET/release/libsafex_rust.d /output/
+RUN mkdir -p /output && \
+    if [ "$TARGETPLATFORM" = "linux/arm64" ]; then \
+    cp target/aarch64-unknown-linux-gnu/release/libsafex_rust.so /output/ && \
+    cp target/aarch64-unknown-linux-gnu/release/libsafex_rust.d /output/; \
+    else \
+    cp target/release/libsafex_rust.so /output/ && \
+    cp target/release/libsafex_rust.d /output/; \
+    fi
 
 # --------------------------------
 FROM node:25-alpine AS web
@@ -43,9 +39,7 @@ RUN mkdir -p ./app/web/static
 RUN cd frontend && npm run build
 
 # --------------------------------
-FROM --platform=$BUILDPLATFORM golang:1.25 AS app
-
-ARG TARGETOS TARGETARCH
+FROM golang:1.25 AS app
 
 WORKDIR /app
 COPY app/go.mod app/go.sum ./app/
@@ -53,11 +47,12 @@ RUN cd app && go mod download
 COPY app ./app
 COPY --from=web /src/frontend/dist/htmx.min.js app/web/static/vendor/
 COPY --from=web /src/frontend/dist/output.css app/web/static/css/
+COPY --from=rust-builder /src/rust/dist/wasm/ app/web/static/wasm/
 
 COPY --from=rust-builder /output/libsafex_rust.so app/lib/
 COPY --from=rust-builder /output/libsafex_rust.d app/lib/
 
-RUN cd app && CGO_ENABLED=1 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -o /out/safex ./cmd/api
+RUN cd app && CGO_ENABLED=1 go build -o /out/safex ./cmd/api
 
 # --------------------------------
 FROM alpine:latest
@@ -70,4 +65,3 @@ COPY --from=rust-builder /output/libsafex_rust.so ./
 ENV LD_LIBRARY_PATH=/app
 EXPOSE 8000
 ENTRYPOINT ["/app/safex"]
-

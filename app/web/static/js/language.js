@@ -5,7 +5,7 @@
   const translations = {
     [LANG_EN]: {
       hero: {
-        kicker: "Safe secret exchange",
+        kicker: "Safe secrets exchange",
       },
       nav: {
         source: "Source code",
