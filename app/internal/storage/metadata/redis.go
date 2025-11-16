@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
 
 	"github.com/redis/go-redis/v9"
 	"github.com/redis/go-redis/v9/maintnotifications"
@@ -72,4 +73,36 @@ func (s *RedisStore) Get(ctx context.Context, id string) (MetadataRecord, error)
 // Delete removes metadata key.
 func (s *RedisStore) Delete(ctx context.Context, id string) error {
 	return s.client.Del(ctx, id).Err()
+}
+
+// ListExpired scans redis keys for expired metadata records.
+func (s *RedisStore) ListExpired(ctx context.Context, before time.Time) ([]MetadataRecord, error) {
+	iter := s.client.Scan(ctx, 0, "", 0).Iterator()
+	var expired []MetadataRecord
+
+	for iter.Next(ctx) {
+		key := iter.Val()
+		val, err := s.client.Get(ctx, key).Bytes()
+		if err != nil {
+			if err == redis.Nil {
+				continue
+			}
+			return nil, err
+		}
+
+		var rec MetadataRecord
+		if err := json.Unmarshal(val, &rec); err != nil {
+			return nil, err
+		}
+
+		if !rec.ExpiresAt.After(before) {
+			expired = append(expired, rec)
+		}
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return expired, nil
 }

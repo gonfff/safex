@@ -3,6 +3,7 @@ package storage
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gonfff/safex/app/internal/config"
 	"github.com/gonfff/safex/app/internal/storage/blob"
@@ -21,6 +22,7 @@ type MetadataStore interface {
 	Create(ctx context.Context, meta metadata.MetadataRecord) error
 	Get(ctx context.Context, id string) (metadata.MetadataRecord, error)
 	Delete(ctx context.Context, id string) error
+	ListExpired(ctx context.Context, before time.Time) ([]metadata.MetadataRecord, error)
 }
 
 // NewBlobStore initializes the configured blob store.

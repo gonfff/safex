@@ -3,6 +3,7 @@ package adapters
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/gonfff/safex/app/internal/domain"
 	"github.com/gonfff/safex/app/internal/storage"
@@ -72,4 +73,27 @@ func (r *SecretRepositoryAdapter) Delete(ctx context.Context, id string) error {
 		return fmt.Errorf("failed to delete secret: %w", err)
 	}
 	return nil
+}
+
+// ListExpired returns secrets that expired before the provided timestamp.
+func (r *SecretRepositoryAdapter) ListExpired(ctx context.Context, before time.Time) ([]*domain.Secret, error) {
+	records, err := r.metaStore.ListExpired(ctx, before)
+	if err != nil {
+		return nil, fmt.Errorf("failed to list expired secrets: %w", err)
+	}
+
+	secrets := make([]*domain.Secret, 0, len(records))
+	for _, record := range records {
+		secrets = append(secrets, &domain.Secret{
+			ID:           record.ID,
+			FileName:     record.FileName,
+			ContentType:  record.ContentType,
+			Size:         record.Size,
+			ExpiresAt:    record.ExpiresAt,
+			PayloadType:  domain.PayloadType(record.PayloadType),
+			OpaqueRecord: record.OpaqueRecord,
+		})
+	}
+
+	return secrets, nil
 }

@@ -2,6 +2,7 @@ package domain
 
 import (
 	"context"
+	"time"
 )
 
 // SecretRepository interface for working with secrets
@@ -9,6 +10,7 @@ type SecretRepository interface {
 	Create(ctx context.Context, secret *Secret) error
 	GetByID(ctx context.Context, id string) (*Secret, error)
 	Delete(ctx context.Context, id string) error
+	ListExpired(ctx context.Context, before time.Time) ([]*Secret, error)
 }
 
 // BlobRepository interface for working with blob storage

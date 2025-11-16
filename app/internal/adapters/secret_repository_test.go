@@ -51,6 +51,19 @@ func (m *mockMetadataStore) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *mockMetadataStore) ListExpired(ctx context.Context, before time.Time) ([]metadata.MetadataRecord, error) {
+	if m.err != nil {
+		return nil, m.err
+	}
+	expired := make([]metadata.MetadataRecord, 0)
+	for _, rec := range m.records {
+		if !rec.ExpiresAt.After(before) {
+			expired = append(expired, rec)
+		}
+	}
+	return expired, nil
+}
+
 func (m *mockMetadataStore) setError(err error) {
 	m.err = err
 }
@@ -155,5 +168,32 @@ func TestSecretRepositoryAdapter_Delete_NotFound(t *testing.T) {
 	err := adapter.Delete(ctx, "nonexistent")
 	if err != domain.ErrSecretNotFound {
 		t.Errorf("expected ErrSecretNotFound, got %v", err)
+	}
+}
+
+func TestSecretRepositoryAdapter_ListExpired(t *testing.T) {
+	ctx := context.Background()
+	mockStore := newMockMetadataStore()
+	adapter := NewSecretRepositoryAdapter(mockStore)
+
+	now := time.Now()
+	mockStore.records["expired-id"] = metadata.MetadataRecord{
+		ID:        "expired-id",
+		ExpiresAt: now.Add(-time.Minute),
+	}
+	mockStore.records["valid-id"] = metadata.MetadataRecord{
+		ID:        "valid-id",
+		ExpiresAt: now.Add(time.Hour),
+	}
+
+	records, err := adapter.ListExpired(ctx, now)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(records) != 1 {
+		t.Fatalf("expected 1 expired secret, got %d", len(records))
+	}
+	if records[0].ID != "expired-id" {
+		t.Fatalf("expected expired-id, got %s", records[0].ID)
 	}
 }

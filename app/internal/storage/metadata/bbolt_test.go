@@ -66,3 +66,38 @@ func TestBoltStore_Close(t *testing.T) {
 		t.Errorf("Close returned error: %v", err)
 	}
 }
+
+func TestBoltStore_ListExpired(t *testing.T) {
+	dbPath := t.TempDir() + "/meta.db"
+	store, err := NewBolt(dbPath)
+	if err != nil {
+		t.Fatalf("new bolt: %v", err)
+	}
+
+	ctx := context.Background()
+	now := time.Now()
+	expired := MetadataRecord{
+		ID:        "expired",
+		ExpiresAt: now.Add(-time.Hour),
+	}
+	valid := MetadataRecord{
+		ID:        "valid",
+		ExpiresAt: now.Add(time.Hour),
+	}
+
+	if err := store.Create(ctx, expired); err != nil {
+		t.Fatalf("create expired: %v", err)
+	}
+	if err := store.Create(ctx, valid); err != nil {
+		t.Fatalf("create valid: %v", err)
+	}
+
+	results, err := store.ListExpired(ctx, now)
+	if err != nil {
+		t.Fatalf("list expired: %v", err)
+	}
+
+	if len(results) != 1 || results[0].ID != "expired" {
+		t.Fatalf("expected only expired record, got %+v", results)
+	}
+}
