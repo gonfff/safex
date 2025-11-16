@@ -1,5 +1,5 @@
-use crate::common::NONCE_LEN;
-use crate::{common::Suite, wasm::*};
+use super::*;
+use crate::common::{Suite, NONCE_LEN};
 use opaque_ke::{
     CredentialFinalization, CredentialRequest, RegistrationRequest, RegistrationUpload,
     ServerLogin, ServerLoginStartParameters, ServerRegistration, ServerSetup,
