@@ -7,12 +7,13 @@ docs_dir: pages
 site_dir: site
 nav:
   - Overview: index.md
-  - Architecture: architecture.md
+  - Why its safe: safex.md
   - Backend Walkthrough: backend.md
   - Frontend & WASM: frontend_wasm.md
 theme:
   name: material
   language: en
+  favicon: assets/favicon-32x32.ico
 markdown_extensions:
   - toc:
       permalink: true

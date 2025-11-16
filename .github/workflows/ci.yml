@@ -6,6 +6,12 @@ on:
     tags: ["v*"]
   pull_request:
 
+permissions:
+  contents: read
+  packages: write
+  pages: write
+  id-token: write
+
 jobs:
   rust-test:
     runs-on: ubuntu-latest
@@ -43,6 +49,42 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Set up Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+
+      - name: Cache Rust artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            rust/target
+          key: ${{ runner.os }}-rust-${{ hashFiles('rust/Cargo.lock', 'rust/Cargo.toml', 'rust/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-rust-
+
+      - name: Cache compiled library
+        id: lib-cache
+        uses: actions/cache@v4
+        with:
+          path: app/lib
+          key: ${{ runner.os }}-lib-${{ hashFiles('rust/Cargo.lock', 'rust/Cargo.toml', 'rust/src/**') }}
+          restore-keys: |
+            ${{ runner.os }}-lib-
+
+      - name: Build Rust library
+        if: steps.lib-cache.outputs.cache-hit != 'true'
+        working-directory: rust
+        run: cargo build --release --features server
+
+      - name: Copy Rust library
+        if: steps.lib-cache.outputs.cache-hit != 'true'
+        run: |
+          mkdir -p app/lib
+          cp rust/target/release/libsafex_rust.* app/lib/
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
@@ -60,7 +102,46 @@ jobs:
 
       - name: Run backend tests
         working-directory: app
-        run: go test ./... -v
+        env:
+          LD_LIBRARY_PATH: ${{ github.workspace }}/app/lib
+        run: |
+          go test ./... -v
+
+  docs-build:
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/v')
+    permissions:
+      contents: read
+      pages: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v3
+        with:
+          python-version: '3.12'
+      - name: Sync docs dependencies
+        run: cd docs && uv sync
+      - name: Build site
+        run: cd docs && uv run mkdocs build --strict
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/site
+
+  docs-deploy:
+    runs-on: ubuntu-latest
+    needs: docs-build
+    if: startsWith(github.ref, 'refs/tags/v')
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    permissions:
+      pages: write
+      id-token: write
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
 
   docker-build-and-push:
     runs-on: ubuntu-latest
@@ -95,6 +176,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          platforms: linux/amd64,linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
