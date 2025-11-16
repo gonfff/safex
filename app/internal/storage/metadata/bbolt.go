@@ -89,6 +89,31 @@ func (s *BoltStore) Delete(_ context.Context, id string) error {
 	})
 }
 
+// ListExpired returns metadata records that expired before the provided time.
+func (s *BoltStore) ListExpired(_ context.Context, before time.Time) ([]MetadataRecord, error) {
+	var expired []MetadataRecord
+	err := s.db.View(func(tx *bbolt.Tx) error {
+		bucket := tx.Bucket([]byte(bucketName))
+		if bucket == nil {
+			return nil
+		}
+		return bucket.ForEach(func(_, value []byte) error {
+			var rec MetadataRecord
+			if err := json.Unmarshal(value, &rec); err != nil {
+				return err
+			}
+			if !rec.ExpiresAt.After(before) {
+				expired = append(expired, rec)
+			}
+			return nil
+		})
+	})
+	if err != nil {
+		return nil, err
+	}
+	return expired, nil
+}
+
 func translateError(err error) error {
 	if errors.Is(err, bboltErrors.ErrBucketNotFound) {
 		return ErrNotFound

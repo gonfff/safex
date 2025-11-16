@@ -26,3 +26,7 @@ Infrastructure Layer (adapters/, infrastructure/)
 | `/secrets/reveal`        | POST   | Reveal secret             | `HandleRevealSecret()`        |
 | `/opaque/register/start` | POST   | Start OPAQUE registration | `HandleOpaqueRegisterStart()` |
 | `/opaque/login/start`    | POST   | Start OPAQUE login        | `HandleOpaqueLoginStart()`    |
+
+## Background cleanup job
+
+Backend runs a cleanup worker (`startCleanupWorker` in `app/cmd/api/main.go`) that, upon startup and then every `3h`, invokes `CleanupExpiredSecretsUseCase`. The job queries `SecretRepository` for all records whose `expires_at` has passed, and for each, deletes both metadata and the blob from storage. Errors are logged, but the remaining expired secrets continue to be deleted to prevent accumulation of "dead" records in the database.

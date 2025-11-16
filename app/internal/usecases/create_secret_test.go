@@ -13,8 +13,10 @@ import (
 
 // Mock implementations
 type mockSecretRepository struct {
-	secrets map[string]*domain.Secret
-	err     error
+	secrets        map[string]*domain.Secret
+	err            error
+	deleteErr      error
+	listExpiredErr error
 }
 
 func newMockSecretRepository() *mockSecretRepository {
@@ -43,6 +45,9 @@ func (m *mockSecretRepository) GetByID(ctx context.Context, id string) (*domain.
 }
 
 func (m *mockSecretRepository) Delete(ctx context.Context, id string) error {
+	if m.deleteErr != nil {
+		return m.deleteErr
+	}
 	if m.err != nil {
 		return m.err
 	}
@@ -50,8 +55,32 @@ func (m *mockSecretRepository) Delete(ctx context.Context, id string) error {
 	return nil
 }
 
+func (m *mockSecretRepository) ListExpired(ctx context.Context, before time.Time) ([]*domain.Secret, error) {
+	if m.listExpiredErr != nil {
+		return nil, m.listExpiredErr
+	}
+	if m.err != nil {
+		return nil, m.err
+	}
+	expired := make([]*domain.Secret, 0)
+	for _, secret := range m.secrets {
+		if !secret.ExpiresAt.After(before) {
+			expired = append(expired, secret)
+		}
+	}
+	return expired, nil
+}
+
 func (m *mockSecretRepository) setError(err error) {
 	m.err = err
+}
+
+func (m *mockSecretRepository) setDeleteError(err error) {
+	m.deleteErr = err
+}
+
+func (m *mockSecretRepository) setListExpiredError(err error) {
+	m.listExpiredErr = err
 }
 
 type mockBlobRepository struct {
