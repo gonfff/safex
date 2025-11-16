@@ -109,55 +109,7 @@ func TestHTTPHandlers_HandleFAQ(t *testing.T) {
 	}
 }
 
-func TestDecodeBase64Field(t *testing.T) {
-	tests := []struct {
-		name        string
-		fieldName   string
-		input       string
-		expectError bool
-	}{
-		{
-			name:        "valid base64",
-			fieldName:   "test",
-			input:       "SGVsbG8gV29ybGQ=", // "Hello World"
-			expectError: false,
-		},
-		{
-			name:        "invalid base64",
-			fieldName:   "test",
-			input:       "invalid-base64!",
-			expectError: true,
-		},
-		{
-			name:        "empty string",
-			fieldName:   "test",
-			input:       "",
-			expectError: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result, err := decodeBase64Field(tt.fieldName, tt.input)
-
-			if tt.expectError {
-				if err == nil {
-					t.Error("expected error but got none")
-				}
-				return
-			}
-
-			if err != nil {
-				t.Errorf("unexpected error: %v", err)
-				return
-			}
-
-			if tt.input == "" && len(result) != 0 {
-				t.Errorf("expected empty result for empty input, got %v", result)
-			}
-		})
-	}
-}
+// TestDecodeBase64Field убран - декодирование base64 теперь в валидаторах
 
 func TestNewHTTPHandlers_Error(t *testing.T) {
 	gin.SetMode(gin.TestMode)

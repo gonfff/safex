@@ -1,9 +1,7 @@
 package opaqueauth
 
-/*
-#cgo CFLAGS: -I${SRCDIR}/../../lib
-#cgo LDFLAGS: -L${SRCDIR}/../../lib -lsafex_rust -ldl -lpthread
-#include "safex_opaque.h"
+/*#cgo LDFLAGS: -L${SRCDIR}/../../lib -lsafex_rust -ldl -lpthread
+#include "rust_bindings.h"
 #include <stdlib.h>
 */
 import "C"

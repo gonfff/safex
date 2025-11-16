@@ -7,9 +7,7 @@ import (
 	"io"
 	"mime/multipart"
 	"net/http"
-	"strconv"
 	"strings"
-	"time"
 
 	"github.com/gin-gonic/gin"
 
@@ -25,37 +23,24 @@ func (h *HTTPHandlers) HandleCreateSecret(c *gin.Context) {
 		return
 	}
 
-	ttl := h.cfg.DefaultTTL
-	if ttlStr := strings.TrimSpace(c.PostForm("ttl_minutes")); ttlStr != "" {
-		minutes, err := strconv.Atoi(ttlStr)
-		if err != nil || minutes <= 0 {
-			h.renderCreateResult(c, http.StatusBadRequest, errors.New("TTL must be a positive number of minutes"))
-			return
-		}
-		ttl = time.Duration(minutes) * time.Minute
-	}
-
-	message := strings.TrimSpace(c.PostForm("message"))
-	payloadTypeRaw := strings.TrimSpace(strings.ToLower(c.PostForm("payload_type")))
-
-	secretID := strings.TrimSpace(c.PostForm("secret_id"))
-	if secretID == "" {
-		h.renderCreateResult(c, http.StatusBadRequest, errors.New("secret ID is required"))
+	var form CreateSecretForm
+	if err := c.ShouldBind(&form); err != nil {
+		h.HandleValidationError(c, err)
 		return
 	}
-	opaqueUploadB64 := strings.TrimSpace(c.PostForm("opaque_upload"))
-	if opaqueUploadB64 == "" {
-		h.renderCreateResult(c, http.StatusBadRequest, errors.New("opaque upload is required"))
-		return
-	}
-	opaqueUpload, err := base64.StdEncoding.DecodeString(opaqueUploadB64)
+
+	// Получаем TTL из формы или используем дефолтный
+	ttl := form.GetTTLDuration(h.cfg.DefaultTTL)
+
+	// Декодируем opaque upload
+	opaqueUpload, err := base64.StdEncoding.DecodeString(form.OpaqueUpload)
 	if err != nil {
 		h.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("invalid opaque upload: %w", err))
 		return
 	}
 
 	input := usecases.CreateSecretInput{
-		ID:           secretID,
+		ID:           form.SecretID,
 		TTL:          ttl,
 		OpaqueRecord: opaqueUpload,
 	}
@@ -78,12 +63,12 @@ func (h *HTTPHandlers) HandleCreateSecret(c *gin.Context) {
 			input.ContentType = http.DetectContentType(payload)
 		}
 	case errors.Is(fileErr, http.ErrMissingFile):
-		if message == "" {
-			h.renderCreateResult(c, http.StatusBadRequest, errors.New("File or message is required"))
+		if form.Message == "" {
+			h.renderCreateResult(c, http.StatusBadRequest, errors.New("file or message is required"))
 			return
 		}
 		usedPlainText = true
-		payload = []byte(message)
+		payload = []byte(form.Message)
 		if len(payload) > h.cfg.MaxPayloadBytes() {
 			h.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("message exceeds %d bytes", h.cfg.MaxPayloadBytes()))
 			return
@@ -96,7 +81,7 @@ func (h *HTTPHandlers) HandleCreateSecret(c *gin.Context) {
 	}
 
 	input.Payload = payload
-	input.PayloadType = normalizePayloadType(payloadTypeRaw, usedPlainText)
+	input.PayloadType = normalizePayloadType(form.PayloadType, usedPlainText)
 
 	ctx := c.Request.Context()
 	secret, err := h.createSecretUC.Execute(ctx, input)
@@ -145,20 +130,19 @@ func (h *HTTPHandlers) HandleLoadSecret(c *gin.Context) {
 
 // HandleRevealSecret handles secret revelation
 func (h *HTTPHandlers) HandleRevealSecret(c *gin.Context) {
-	sessionID := strings.TrimSpace(c.PostForm("session_id"))
-	finalizationB64 := strings.TrimSpace(c.PostForm("finalization"))
-	if sessionID == "" || finalizationB64 == "" {
-		h.renderRevealResult(c, http.StatusBadRequest, errors.New("session_id and finalization are required"), nil, nil)
+	var form RevealSecretForm
+	if err := c.ShouldBind(&form); err != nil {
+		h.HandleValidationError(c, err)
 		return
 	}
 
-	finalization, err := base64.StdEncoding.DecodeString(finalizationB64)
+	finalization, err := base64.StdEncoding.DecodeString(form.Finalization)
 	if err != nil {
 		h.renderRevealResult(c, http.StatusBadRequest, fmt.Errorf("invalid finalization: %w", err), nil, nil)
 		return
 	}
 
-	secretID, err := h.opaqueAuthUC.FinishLogin(sessionID, finalization)
+	secretID, err := h.opaqueAuthUC.FinishLogin(form.SessionID, finalization)
 	if err != nil {
 		switch {
 		case errors.Is(err, opaqueauth.ErrSessionNotFound):
@@ -172,7 +156,7 @@ func (h *HTTPHandlers) HandleRevealSecret(c *gin.Context) {
 		return
 	}
 
-	if secretIDParam := strings.TrimSpace(c.PostForm("secret_id")); secretIDParam != "" && secretIDParam != secretID {
+	if form.SecretID != "" && form.SecretID != secretID {
 		h.renderRevealResult(c, http.StatusBadRequest, errInvalidPinOrMissing, nil, nil)
 		return
 	}

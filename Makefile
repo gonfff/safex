@@ -14,7 +14,6 @@ install-deps:
 	cp rust/target/release/libsafex_rust.rlib app/lib/
 	cp rust/target/release/libsafex_rust.d app/lib/
 	cp rust/target/release/libsafex_rust.dylib app/lib/
-	cp rust/include/safex_opaque.h app/lib/
 
 	@echo "Copying frontend assets..."
 	mkdir -p app/web/static/vendor

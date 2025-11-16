@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"html/template"
 	"net/http"
-	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
@@ -38,6 +37,9 @@ func NewHTTPHandlers(
 	opaqueAuthUC *usecases.OpaqueAuthUseCase,
 	logger zerolog.Logger,
 ) (*HTTPHandlers, error) {
+	// Регистрируем кастомные валидаторы
+	RegisterCustomValidators()
+
 	tpl, err := web.Templates()
 	if err != nil {
 		return nil, fmt.Errorf("parse templates: %w", err)
@@ -54,7 +56,7 @@ func NewHTTPHandlers(
 	}, nil
 }
 
-var errInvalidPinOrMissing = errors.New("File not found or invalid PIN")
+var errInvalidPinOrMissing = errors.New("file not found or invalid PIN")
 
 // HandleHealth handles health check requests
 func (h *HTTPHandlers) HandleHealth(c *gin.Context) {
@@ -85,11 +87,6 @@ func (h *HTTPHandlers) HandleFAQ(c *gin.Context) {
 	h.renderTemplate(c, "faq", data)
 }
 
-// OpaqueRegisterStartRequest request to start OPAQUE registration
-type OpaqueRegisterStartRequest struct {
-	Request string `json:"request"`
-}
-
 // OpaqueRegisterStartResponse response to start OPAQUE registration
 type OpaqueRegisterStartResponse struct {
 	SecretID string `json:"secretId"`
@@ -98,15 +95,15 @@ type OpaqueRegisterStartResponse struct {
 
 // HandleOpaqueRegisterStart handles the start of OPAQUE registration
 func (h *HTTPHandlers) HandleOpaqueRegisterStart(c *gin.Context) {
-	var req OpaqueRegisterStartRequest
+	var req OpaqueRegisterStartForm
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		h.HandleValidationError(c, err)
 		return
 	}
 
-	payload, err := decodeBase64Field("request", req.Request)
+	payload, err := base64.StdEncoding.DecodeString(req.Request)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request format"})
 		return
 	}
 
@@ -124,12 +121,6 @@ func (h *HTTPHandlers) HandleOpaqueRegisterStart(c *gin.Context) {
 	})
 }
 
-// OpaqueLoginStartRequest request to start OPAQUE login
-type OpaqueLoginStartRequest struct {
-	SecretID string `json:"secretId"`
-	Request  string `json:"request"`
-}
-
 // OpaqueLoginStartResponse response to start OPAQUE login
 type OpaqueLoginStartResponse struct {
 	SessionID string `json:"sessionId"`
@@ -138,25 +129,19 @@ type OpaqueLoginStartResponse struct {
 
 // HandleOpaqueLoginStart handles the start of OPAQUE login
 func (h *HTTPHandlers) HandleOpaqueLoginStart(c *gin.Context) {
-	var req OpaqueLoginStartRequest
+	var req OpaqueLoginStartForm
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request payload"})
+		h.HandleValidationError(c, err)
 		return
 	}
 
-	secretID := strings.TrimSpace(req.SecretID)
-	if secretID == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "secretId is required"})
-		return
-	}
-
-	payload, err := decodeBase64Field("request", req.Request)
+	payload, err := base64.StdEncoding.DecodeString(req.Request)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid request format"})
 		return
 	}
 
-	secret, err := h.loadSecretUC.GetMetadata(c.Request.Context(), secretID)
+	secret, err := h.loadSecretUC.GetMetadata(c.Request.Context(), req.SecretID)
 	if err != nil {
 		if errors.Is(err, domain.ErrSecretNotFound) {
 			c.JSON(http.StatusNotFound, gin.H{"error": errInvalidPinOrMissing.Error()})
@@ -166,20 +151,20 @@ func (h *HTTPHandlers) HandleOpaqueLoginStart(c *gin.Context) {
 			c.JSON(http.StatusGone, gin.H{"error": "secret expired"})
 			return
 		}
-		h.logger.Error().Err(err).Str("secret_id", secretID).Msg("load metadata for opaque")
+		h.logger.Error().Err(err).Str("secret_id", req.SecretID).Msg("load metadata for opaque")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "failed to load secret"})
 		return
 	}
 
 	if len(secret.OpaqueRecord) == 0 {
-		h.logger.Error().Str("secret_id", secretID).Msg("missing opaque record")
+		h.logger.Error().Str("secret_id", req.SecretID).Msg("missing opaque record")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "opaque record missing"})
 		return
 	}
 
-	sessionID, response, err := h.opaqueAuthUC.StartLogin(secretID, secret.OpaqueRecord, payload)
+	sessionID, response, err := h.opaqueAuthUC.StartLogin(req.SecretID, secret.OpaqueRecord, payload)
 	if err != nil {
-		h.logger.Error().Err(err).Str("secret_id", secretID).Msg("opaque login start")
+		h.logger.Error().Err(err).Str("secret_id", req.SecretID).Msg("opaque login start")
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "opaque login failed"})
 		return
 	}
@@ -188,15 +173,4 @@ func (h *HTTPHandlers) HandleOpaqueLoginStart(c *gin.Context) {
 		SessionID: sessionID,
 		Response:  base64.StdEncoding.EncodeToString(response),
 	})
-}
-
-func decodeBase64Field(name, value string) ([]byte, error) {
-	if strings.TrimSpace(value) == "" {
-		return nil, fmt.Errorf("%s is required", name)
-	}
-	data, err := base64.StdEncoding.DecodeString(value)
-	if err != nil {
-		return nil, fmt.Errorf("invalid %s: %w", name, err)
-	}
-	return data, nil
 }
