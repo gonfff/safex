@@ -9,7 +9,6 @@ import (
 
 func TestCreateSecretForm_Validation(t *testing.T) {
 	validate := validator.New()
-	// Регистрируем кастомные валидаторы
 	validate.RegisterValidation("base64", validateBase64)
 	validate.RegisterValidation("uuid", validateUUID)
 
@@ -22,7 +21,7 @@ func TestCreateSecretForm_Validation(t *testing.T) {
 			name: "valid form",
 			form: CreateSecretForm{
 				SecretID:     "550e8400-e29b-41d4-a716-446655440000",
-				OpaqueUpload: "dGVzdA==", // "test" в base64
+				OpaqueUpload: "dGVzdA==", // "test" in base64
 				TTLMinutes:   15,
 				Message:      "test message",
 				PayloadType:  "text",
@@ -50,7 +49,7 @@ func TestCreateSecretForm_Validation(t *testing.T) {
 			form: CreateSecretForm{
 				SecretID:     "550e8400-e29b-41d4-a716-446655440000",
 				OpaqueUpload: "dGVzdA==",
-				TTLMinutes:   -1, // негативное значение должно вызвать ошибку
+				TTLMinutes:   -1,
 			},
 			wantError: true,
 		},
@@ -93,7 +92,7 @@ func TestValidationMessages(t *testing.T) {
 	validationErrors := FormatValidationErrors(err)
 	assert.Len(t, validationErrors, 2)
 
-	// Проверяем, что получили понятные сообщения
+	// Check that we received clear messages
 	var messages []string
 	for _, e := range validationErrors {
 		messages = append(messages, e.Message)

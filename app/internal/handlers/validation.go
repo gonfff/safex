@@ -9,13 +9,13 @@ import (
 	"github.com/go-playground/validator/v10"
 )
 
-// ValidationError представляет ошибку валидации
+// ValidationError is a struct representing a validation error
 type ValidationError struct {
 	Field   string `json:"field"`
 	Message string `json:"message"`
 }
 
-// FormatValidationErrors форматирует ошибки валидации
+// FormatValidationErrors formats validation errors
 func FormatValidationErrors(err error) []ValidationError {
 	var errors []ValidationError
 
@@ -31,7 +31,7 @@ func FormatValidationErrors(err error) []ValidationError {
 	return errors
 }
 
-// getValidationMessage возвращает понятное сообщение об ошибке
+// getValidationMessage returns a clear error message
 func getValidationMessage(fieldError validator.FieldError) string {
 	switch fieldError.Tag() {
 	case "required":
@@ -51,11 +51,11 @@ func getValidationMessage(fieldError validator.FieldError) string {
 	}
 }
 
-// HandleValidationError обрабатывает ошибки валидации
+// HandleValidationError handles validation errors
 func (h *HTTPHandlers) HandleValidationError(c *gin.Context, err error) {
 	validationErrors := FormatValidationErrors(err)
 
-	// Для JSON API возвращаем JSON с ошибками
+	// For JSON API, return JSON with errors
 	if strings.Contains(c.GetHeader("Content-Type"), "application/json") {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"error":  "validation failed",
@@ -64,7 +64,7 @@ func (h *HTTPHandlers) HandleValidationError(c *gin.Context, err error) {
 		return
 	}
 
-	// Для форм показываем первую ошибку
+	// For forms, show the first error
 	if len(validationErrors) > 0 {
 		h.renderCreateResult(c, http.StatusBadRequest, fmt.Errorf("%s", validationErrors[0].Message))
 		return

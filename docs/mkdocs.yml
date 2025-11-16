@@ -6,16 +6,30 @@ repo_name: safex
 docs_dir: pages
 site_dir: site
 nav:
-  - Overview: index.md
-  - Why its safe: safex.md
-  - Backend Walkthrough: backend.md
-  - Frontend & WASM: frontend_wasm.md
+  - Home: index.md
+  - Architecture: architecture.md
+  - Security:
+    - OPAQUE Protocol: opaque_protocol.md
+  - Components:
+    - Backend API: backend.md
+    - Frontend & WASM: frontend_wasm.md
+    - Rust Components: rust_components.md
+  - Deployment:
+    - Docker: deployment_docker.md
+    - Local Development: deployment_local.md
+  - Configuration:
+    - Environment Variables: configuration.md
 theme:
   name: material
   language: en
-  favicon: assets/favicon-32x32.ico
+  favicon: assets/favicon-32x32.png
+  features:
+    - content.code.copy
+    - navigation.sections
+    - navigation.top
 markdown_extensions:
   - toc:
       permalink: true
-  - admonition
-  - codehilite
+plugins:
+  - mermaid2
+

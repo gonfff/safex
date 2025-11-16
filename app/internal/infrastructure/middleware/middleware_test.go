@@ -176,12 +176,12 @@ func TestRateLimitMiddleware_Blocked(t *testing.T) {
 
 	router := gin.New()
 	router.Use(middleware)
-	router.GET("/test", func(c *gin.Context) {
+	router.POST("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "test"})
 	})
 
 	// First request should pass
-	req1 := httptest.NewRequest("GET", "/test", nil)
+	req1 := httptest.NewRequest("POST", "/test", nil)
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 	if w1.Code != http.StatusOK {
@@ -189,7 +189,7 @@ func TestRateLimitMiddleware_Blocked(t *testing.T) {
 	}
 
 	// Second request should be blocked
-	req2 := httptest.NewRequest("GET", "/test", nil)
+	req2 := httptest.NewRequest("POST", "/test", nil)
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
 	if w2.Code != http.StatusTooManyRequests {

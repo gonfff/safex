@@ -258,7 +258,6 @@ func TestRevealResultData(t *testing.T) {
 }
 
 func TestNormalizePayloadTypeInternal(t *testing.T) {
-	// Test как функция пакета
 	tests := []struct {
 		name          string
 		raw           string

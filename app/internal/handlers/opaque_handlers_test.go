@@ -26,7 +26,7 @@ func TestHandleOpaqueRegisterStart_InvalidJSON(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/register/start", handlers.HandleOpaqueRegisterStart)
 
-	// Test с неправильным JSON
+	// Test with invalid JSON
 	req := httptest.NewRequest("POST", "/opaque/register/start",
 		bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -49,7 +49,7 @@ func TestHandleOpaqueRegisterStart_MissingRequest(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/register/start", handlers.HandleOpaqueRegisterStart)
 
-	// Test с пустым request
+	// Test with empty request
 	requestData := OpaqueRegisterStartForm{
 		Request: "",
 	}
@@ -77,7 +77,7 @@ func TestHandleOpaqueLoginStart_InvalidJSON(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/login/start", handlers.HandleOpaqueLoginStart)
 
-	// Test с неправильным JSON
+	// Test with invalid JSON
 	req := httptest.NewRequest("POST", "/opaque/login/start",
 		bytes.NewBufferString("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -87,8 +87,6 @@ func TestHandleOpaqueLoginStart_InvalidJSON(t *testing.T) {
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
-
-// Тест декодирования base64 убран, так как эта логика теперь в валидаторах
 
 func TestRenderTemplate_Function(t *testing.T) {
 	gin.SetMode(gin.TestMode)
@@ -165,7 +163,7 @@ func TestHandleOpaqueRegisterStart_InvalidBase64(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/register/start", handlers.HandleOpaqueRegisterStart)
 
-	// Test с невалидным base64 в request поле
+	// Test with invalid base64 in request field
 	reqData := OpaqueRegisterStartForm{
 		Request: "invalid-base64!",
 	}
@@ -192,7 +190,7 @@ func TestHandleOpaqueLoginStart_MissingSecretID(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/login/start", handlers.HandleOpaqueLoginStart)
 
-	// Test без secretId
+	// Test without secretId
 	reqData := OpaqueLoginStartForm{
 		Request: "dGVzdA==", // valid base64
 	}
@@ -219,7 +217,7 @@ func TestHandleOpaqueLoginStart_EmptySecretID(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/login/start", handlers.HandleOpaqueLoginStart)
 
-	// Test с пустым secretId
+	// Test with empty secretId
 	reqData := OpaqueLoginStartForm{
 		SecretID: "   ", // only whitespace
 		Request:  "dGVzdA==",
@@ -247,7 +245,7 @@ func TestHandleOpaqueLoginStart_InvalidBase64Request(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/login/start", handlers.HandleOpaqueLoginStart)
 
-	// Test с невалидным base64 в request поле
+	// Test with invalid base64 in request field
 	reqData := OpaqueLoginStartForm{
 		SecretID: "test-secret-id",
 		Request:  "invalid-base64!",
@@ -275,9 +273,9 @@ func TestHandleOpaqueRegisterStart_EmptyRequest(t *testing.T) {
 	router := gin.New()
 	router.POST("/opaque/register/start", handlers.HandleOpaqueRegisterStart)
 
-	// Test с пустым request полем
+	// Test with empty request field
 	reqData := OpaqueRegisterStartForm{
-		Request: "", // пустое поле
+		Request: "", // empty field
 	}
 	jsonData, _ := json.Marshal(reqData)
 

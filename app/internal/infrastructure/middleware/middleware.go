@@ -82,7 +82,7 @@ func (r *RateLimiter) allow(key string) (remaining int, retryAfter time.Duration
 	return r.limit - entry.count, entry.reset.Sub(now), true
 }
 
-// RateLimitMiddleware returns middleware for request rate limiting
+// RateLimitMiddleware returns middleware for request rate limiting. Limit applies only to POST requests.
 func RateLimitMiddleware(l *RateLimiter, logger zerolog.Logger) gin.HandlerFunc {
 	if l == nil {
 		return func(c *gin.Context) {
@@ -90,6 +90,11 @@ func RateLimitMiddleware(l *RateLimiter, logger zerolog.Logger) gin.HandlerFunc 
 		}
 	}
 	return func(c *gin.Context) {
+		if c.Request.Method != http.MethodPost {
+			c.Next()
+			return
+		}
+
 		key := c.ClientIP()
 		if key == "" {
 			key = "anonymous"

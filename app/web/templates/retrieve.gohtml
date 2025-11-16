@@ -82,23 +82,21 @@
             <div id="unlock-card" class="card bg-base-200 border border-base-300 shadow-xl">
                 <div class="card-body space-y-6">
                     <header class="space-y-2 text-center">
-                        <h1 class="text-3xl font-bold" data-i18n="retrieve.form.title">Получить сообщение</h1>
-                        <p class="text-base text-base-content/70" data-i18n="retrieve.form.subtitle">Введите PIN, чтобы
-                            расшифровать секрет.</p>
+                        <h1 class="text-3xl font-bold" data-i18n="retrieve.form.title"></h1>
+                        <p class="text-base text-base-content/70" data-i18n="retrieve.form.subtitle"></p>
                     </header>
                     <form class="space-y-4" id="unlock-form" method="post">
                         <input type="hidden" name="secret_id" value="{{.SecretID}}" />
                         <div class="space-y-2">
                             <label class="label" for="unlock-pin">
-                                <span class="label-text font-semibold" data-i18n="retrieve.form.pinLabel">PIN-код</span>
+                                <span class="label-text font-semibold" data-i18n="retrieve.form.pinLabel"></span>
                             </label>
                             <input id="unlock-pin" name="pin" inputmode="numeric" maxlength="6" pattern="[0-9]{6}"
                                 placeholder="" data-i18n-placeholder="retrieve.form.pinPlaceholder"
                                 class="input input-bordered w-full bg-base-100" required />
                         </div>
                         <div class="card-actions">
-                            <button type="submit" class="btn btn-primary w-full" data-i18n="retrieve.form.cta">Получить
-                                сообщение</button>
+                            <button type="submit" class="btn btn-primary w-full" data-i18n="retrieve.form.cta"></button>
                             <span id="reveal-indicator"
                                 class="loading loading-spinner loading-sm text-primary hidden"></span>
                         </div>
