@@ -92,6 +92,7 @@ func getOpaquePrivateKey() string {
 	}
 	key := make([]byte, 32)
 	rand.Read(key)
+	fmt.Println(base64.StdEncoding.EncodeToString(key))
 	return base64.StdEncoding.EncodeToString(key)
 }
 func getOpaqueOPRFSeed() string {
@@ -100,6 +101,7 @@ func getOpaqueOPRFSeed() string {
 	}
 	seed := make([]byte, 64)
 	rand.Read(seed)
+	fmt.Println(base64.StdEncoding.EncodeToString(seed))
 	return base64.StdEncoding.EncodeToString(seed)
 }
 

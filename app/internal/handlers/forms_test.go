@@ -2,9 +2,12 @@ package handlers
 
 import (
 	"testing"
+	"time"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/gonfff/safex/app/internal/config"
 )
 
 func TestCreateSecretForm_Validation(t *testing.T) {
@@ -22,7 +25,8 @@ func TestCreateSecretForm_Validation(t *testing.T) {
 			form: CreateSecretForm{
 				SecretID:     "550e8400-e29b-41d4-a716-446655440000",
 				OpaqueUpload: "dGVzdA==", // "test" in base64
-				TTLMinutes:   15,
+				TTLValue:     2,
+				TTLUnit:      "hours",
 				Message:      "test message",
 				PayloadType:  "text",
 			},
@@ -49,7 +53,7 @@ func TestCreateSecretForm_Validation(t *testing.T) {
 			form: CreateSecretForm{
 				SecretID:     "550e8400-e29b-41d4-a716-446655440000",
 				OpaqueUpload: "dGVzdA==",
-				TTLMinutes:   -1,
+				TTLValue:     -1,
 			},
 			wantError: true,
 		},
@@ -59,6 +63,16 @@ func TestCreateSecretForm_Validation(t *testing.T) {
 				SecretID:     "550e8400-e29b-41d4-a716-446655440000",
 				OpaqueUpload: "dGVzdA==",
 				PayloadType:  "invalid",
+			},
+			wantError: true,
+		},
+		{
+			name: "invalid ttl unit",
+			form: CreateSecretForm{
+				SecretID:     "550e8400-e29b-41d4-a716-446655440000",
+				OpaqueUpload: "dGVzdA==",
+				TTLValue:     10,
+				TTLUnit:      "weeks",
 			},
 			wantError: true,
 		},
@@ -100,4 +114,66 @@ func TestValidationMessages(t *testing.T) {
 
 	assert.Contains(t, messages, "SecretID must be a valid UUID")
 	assert.Contains(t, messages, "OpaqueUpload is required")
+}
+
+func TestCreateSecretForm_ValidateWithConfig_TTLConversion(t *testing.T) {
+	cfg := config.Config{MaxTTLMinutes: 24 * 60}
+
+	form := CreateSecretForm{
+		TTLValue: 1,
+		TTLUnit:  "days",
+	}
+	assert.NoError(t, form.ValidateWithConfig(cfg))
+
+	tooLarge := CreateSecretForm{
+		TTLValue: 2,
+		TTLUnit:  "days",
+	}
+	assert.EqualError(
+		t,
+		tooLarge.ValidateWithConfig(cfg),
+		"ttl exceeds maximum allowed value",
+	)
+
+	legacy := CreateSecretForm{
+		TTLMinutes: 15,
+	}
+	assert.NoError(t, legacy.ValidateWithConfig(cfg))
+}
+
+func TestCreateSecretForm_GetTTLDuration(t *testing.T) {
+	defaultTTL := 15 * time.Minute
+
+	tests := []struct {
+		name string
+		form CreateSecretForm
+		want time.Duration
+	}{
+		{
+			name: "legacy ttl minutes",
+			form: CreateSecretForm{TTLMinutes: 30},
+			want: 30 * time.Minute,
+		},
+		{
+			name: "hours unit",
+			form: CreateSecretForm{TTLValue: 2, TTLUnit: "hours"},
+			want: 2 * time.Hour,
+		},
+		{
+			name: "days unit",
+			form: CreateSecretForm{TTLValue: 1, TTLUnit: "days"},
+			want: 24 * time.Hour,
+		},
+		{
+			name: "fallback to default when ttl missing",
+			form: CreateSecretForm{},
+			want: defaultTTL,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.form.GetTTLDuration(defaultTTL))
+		})
+	}
 }

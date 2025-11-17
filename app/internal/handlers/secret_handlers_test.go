@@ -125,7 +125,8 @@ func TestHandleCreateSecret_InvalidTTL(t *testing.T) {
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
-	writer.WriteField("ttl_minutes", "invalid")
+	writer.WriteField("ttl", "invalid")
+	writer.WriteField("ttl_unit", "minutes")
 	writer.WriteField("message", "test message")
 	writer.WriteField("opaque_upload", base64.StdEncoding.EncodeToString([]byte("test-opaque")))
 	writer.Close()
@@ -158,7 +159,8 @@ func TestHandleCreateSecret_NegativeTTL(t *testing.T) {
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
-	writer.WriteField("ttl_minutes", "-10")
+	writer.WriteField("ttl", "-10")
+	writer.WriteField("ttl_unit", "minutes")
 	writer.WriteField("message", "test message")
 	writer.WriteField("opaque_upload", base64.StdEncoding.EncodeToString([]byte("test-opaque")))
 	writer.Close()
@@ -542,7 +544,8 @@ func TestHandleCreateSecret_ZeroTTL(t *testing.T) {
 	var b bytes.Buffer
 	writer := multipart.NewWriter(&b)
 	writer.WriteField("secret_id", "test-secret-id")
-	writer.WriteField("ttl_minutes", "0") // invalid TTL
+	writer.WriteField("ttl", "0") // invalid TTL
+	writer.WriteField("ttl_unit", "minutes")
 	writer.WriteField("message", "test message")
 	writer.WriteField("opaque_upload", base64.StdEncoding.EncodeToString([]byte("test-opaque")))
 	writer.Close()
