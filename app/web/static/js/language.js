@@ -10,6 +10,7 @@
       nav: {
         source: "Source code",
         faq: "FAQ",
+        docs: "Docs",
       },
       guide: {
         intro: {
@@ -131,6 +132,7 @@
       nav: {
         source: "Исходный код",
         faq: "FAQ",
+        docs: "Документация",
       },
       guide: {
         intro: {
