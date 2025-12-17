@@ -16,6 +16,7 @@
     {{end}}
     <title>Safex</title>
     <link rel="stylesheet" href="/static/css/output.css" />
+    <link rel="icon" href="/favicon.ico">
     <link rel="icon" type="image/png" sizes="32x32" href="/static/img/favicon-32x32.png" />
     <link rel="icon" type="image/png" sizes="16x16" href="/static/img/favicon-16x16.png" />
     <style>
@@ -45,6 +46,25 @@
                 <a href="https://gonfff.com/safex/" class="link link-hover" target="_blank" rel="noreferrer noopener"
                     data-i18n="nav.docs"></a>
             </nav>
+            <div class="md:hidden">
+                <div class="dropdown dropdown-end">
+                    <button type="button" tabindex="0" aria-label="Open navigation menu"
+                        class="btn btn-ghost btn-square btn-sm rounded-lg border border-transparent hover:border-base-content/60">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"
+                            stroke-width="1.8" class="h-6 w-6">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        </svg>
+                    </button>
+                    <ul tabindex="0"
+                        class="dropdown-content menu menu-sm bg-base-200 rounded-box z-[1] mt-3 w-44 p-2 shadow">
+                        <li><a href="https://github.com/gonfff/safex" target="_blank" rel="noreferrer noopener"
+                                data-i18n="nav.source"></a></li>
+                        <li><a href="/faq" data-i18n="nav.faq"></a></li>
+                        <li><a href="https://gonfff.com/safex/" target="_blank" rel="noreferrer noopener"
+                                data-i18n="nav.docs"></a></li>
+                    </ul>
+                </div>
+            </div>
             <div class="dropdown dropdown-end">
                 <button
                     class="btn btn-ghost btn-square btn-sm rounded-lg border border-transparent hover:border-base-content/60"
